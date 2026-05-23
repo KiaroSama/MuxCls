@@ -14,10 +14,11 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Uses `ffprobe` for stream scanning and `ffmpeg -c copy` for remuxing.
 - Preserves folder structure when processing folders.
 - Creates selection-based output names such as `SeriesName [JA Audio + EN Subs]`.
-- Avoids overwriting existing output by default and adds numeric suffixes when needed.
+- Avoids overwriting existing output by default and uses numeric suffixes when needed.
+- Skips files when the selected audio rule matches no audio stream, instead of creating silent video-only output.
 - Can preserve metadata, chapters, stream labels, language tags, and MKV font attachments when selected.
 - Writes detailed UTF-8 run logs to the local `Logs` folder.
-- Includes Windows launchers and an optional installer for the `MuxCls` command.
+- Includes Windows launchers, an optional installer, and an uninstaller for the `MuxCls` command.
 
 ## Requirements
 
@@ -54,6 +55,12 @@ After installing, open a new terminal and run:
 MuxCls
 ```
 
+To remove the command from your user `PATH` later:
+
+```powershell
+.\Uninstall-MuxClsCommand.ps1
+```
+
 ## Usage
 
 Run from the project folder:
@@ -85,9 +92,9 @@ Typical flow:
 7. Confirm settings and start processing.
 8. Optionally verify the output folder after processing.
 
-The stream selection style menu defaults to option `2`, advanced rules by language, title, or index. Press Enter at that menu to use advanced selection.
+The stream selection style menu defaults to option `2`, advanced rules by language, title, or index. Press Enter at that menu to use advanced selection. In advanced selection, the subtitle mode defaults to keeping all subtitles.
 
-The first input prompt supports `quit` or `exit`. Later menus also support `0` for Back.
+The first input prompt supports `q`, `quit`, or `exit`. Later menus also support `0` for Back.
 
 ## Output Behavior
 
@@ -111,6 +118,8 @@ Example suffixes:
 
 If a generated folder or file already exists, MuxCls adds a numeric suffix such as `(2)`.
 
+If you enter a relative output folder, MuxCls shows the resolved absolute path and asks for confirmation. If an output path looks like a media file name, such as `output.mkv`, MuxCls rejects it and asks for a folder path.
+
 ## Metadata
 
 `Keep metadata: True` means MuxCls asks FFmpeg to preserve supported metadata from the source where possible. This can include container metadata, stream titles, language tags, chapters, stream labels, and other supported metadata fields.
@@ -121,9 +130,12 @@ This does not change video, audio, or subtitle content. Metadata preservation de
 
 - MuxCls executes `ffprobe` and `ffmpeg` from your system `PATH`.
 - MuxCls creates output files and folders based on your selections.
-- Existing output files are skipped by default unless overwrite is enabled.
+- Existing output files are not overwritten by default; MuxCls uses safe output names and FFmpeg is run with no-overwrite mode.
 - If overwrite is enabled, FFmpeg may replace matching output files.
-- `Install-MuxClsCommand.ps1` modifies the current user's `PATH` environment variable by adding the project folder.
+- If your selected audio rule matches no audio stream in a file, that file is skipped and counted as `No audio match`.
+- `MuxCls.cmd` tries PowerShell 7 (`pwsh.exe`) first when available, then falls back to Windows PowerShell.
+- `Install-MuxClsCommand.ps1` modifies the current user's `PATH` environment variable by adding the project folder. It checks PATH length before writing and broadcasts an environment-change notification when possible.
+- `Uninstall-MuxClsCommand.ps1` removes the project folder from the current user's `PATH`.
 - Logs can contain local file paths, command lines, system information, warnings, and FFmpeg output. Do not publish local `Logs` files.
 
 ## Repository Files
@@ -132,13 +144,15 @@ This does not change video, audio, or subtitle content. Metadata preservation de
 | --- | --- |
 | `MuxCls.py` | Main Python application. |
 | `run.ps1` | PowerShell launcher that finds Python and runs `MuxCls.py`. |
-| `MuxCls.cmd` | Windows command shim for running the PowerShell launcher. |
+| `MuxCls.cmd` | Windows command shim that prefers PowerShell 7 and falls back to Windows PowerShell. |
 | `Install-MuxClsCommand.ps1` | Adds the project folder to the current user's `PATH`. |
+| `Uninstall-MuxClsCommand.ps1` | Removes the project folder from the current user's `PATH`. |
 | `README.md` | Project documentation. |
 | `.gitignore` | Excludes logs, caches, local notes, temporary files, secrets, and generated output. |
 | `LICENSE` | MIT License. |
 | `ATTRIBUTION.md` | Standalone attribution notice for reuse and redistribution. |
-| `GITHUB_RELEASE_NOTES.md` | Draft release notes for the first GitHub release. |
+| `CHANGELOG.md` | Versioned project changelog. |
+| `GITHUB_RELEASE_NOTES.md` | Draft release notes for the next GitHub release. |
 
 ## Logs
 
@@ -149,6 +163,8 @@ Logs\muxcls_2026-05-15_22-30-15.log
 ```
 
 Logs are intended for local troubleshooting and are ignored by Git.
+
+Local-only folders such as `Logs/`, `.Comments/`, and `.claude/` are ignored and are not part of the public release.
 
 ## Troubleshooting
 
@@ -170,12 +186,18 @@ Install Python 3 or add Python to `PATH`. The launcher first tries `py -3`, then
 Run from a trusted local project folder. The command shim uses:
 
 ```cmd
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0run.ps1"
+pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0run.ps1"
 ```
+
+If PowerShell 7 is not installed, `MuxCls.cmd` falls back to `powershell.exe`.
 
 ### Output already exists
 
-MuxCls skips existing output unless overwrite is enabled. Choose a different output folder, delete old generated output yourself, or enable overwrite only when you are sure replacing files is safe.
+MuxCls avoids overwriting existing output unless overwrite is enabled. Choose a different output folder, delete old generated output yourself, or enable overwrite only when you are sure replacing files is safe.
+
+### No audio match
+
+If your audio language, title, or index rule matches no audio streams in a file, MuxCls skips that file instead of creating a silent video-only output. Review the scan report and choose an existing language, title, or stream index.
 
 ## License and Attribution
 

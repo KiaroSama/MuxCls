@@ -27,6 +27,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -38,7 +39,7 @@ VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi"}
 
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 
 LOGGER = logging.getLogger("MuxCls")
 LOG_FILE: Optional[Path] = None
@@ -57,10 +58,13 @@ class C:
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     BLUE = "\033[94m"
-    MAGENTA = "\033[97m"
+    MAGENTA = "\033[95m"
     CYAN = "\033[96m"
     WHITE = "\033[97m"
-    GRAY = "\033[97m"
+    GRAY = "\033[90m"
+
+
+LANGUAGE_COLORS = (C.GREEN, C.CYAN, C.MAGENTA, C.YELLOW, C.BLUE)
 
 
 def color(text: object, code: str) -> str:
@@ -89,14 +93,21 @@ def dim(text: object) -> str:
     return color(text, C.GRAY)
 
 
-def bold(text: object) -> str:
-    return color(text, C.BOLD)
-
-
 def enable_windows_ansi() -> None:
-    # Enables ANSI escape handling on many Windows consoles.
-    if os.name == "nt":
-        os.system("")
+    if os.name != "nt":
+        return
+
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        stdout = kernel32.GetStdHandle(-11)
+        mode = ctypes.c_uint32()
+        if stdout and kernel32.GetConsoleMode(stdout, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(stdout, mode.value | 0x0004)
+    except Exception:
+        # Color is cosmetic. If VT mode cannot be enabled, continue without failing startup.
+        return
 
 
 def command_to_text(args: Sequence[object]) -> str:
@@ -200,6 +211,19 @@ class SelectionRules:
     overwrite: bool
 
 
+AUDIO_BY_LANGUAGE = "1"
+AUDIO_BY_TITLE = "2"
+AUDIO_BY_INDEX = "3"
+AUDIO_ALL = "4"
+AUDIO_NONE = "5"
+
+SUBTITLE_NONE = "1"
+SUBTITLE_BY_LANGUAGE = "2"
+SUBTITLE_BY_TITLE = "3"
+SUBTITLE_BY_INDEX = "4"
+SUBTITLE_ALL = "5"
+
+
 def run_command(args: Sequence[str]) -> subprocess.CompletedProcess:
     LOGGER.debug("Running command: %s", command_to_text(args))
     proc = subprocess.run(
@@ -218,6 +242,45 @@ def run_command(args: Sequence[str]) -> subprocess.CompletedProcess:
     return proc
 
 
+def run_ffmpeg_command(args: Sequence[str]) -> subprocess.CompletedProcess:
+    LOGGER.debug("Running FFmpeg command: %s", command_to_text(args))
+
+    try:
+        with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as stdout_file, \
+                tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as stderr_file:
+            proc = subprocess.Popen(
+                args,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                text=True,
+            )
+
+            next_notice = time.perf_counter() + 10
+            while proc.poll() is None:
+                time.sleep(0.5)
+                now = time.perf_counter()
+                if now >= next_notice:
+                    print(dim("          still remuxing..."))
+                    next_notice = now + 10
+
+            returncode = proc.wait()
+            stdout_file.seek(0)
+            stderr_file.seek(0)
+            stdout = stdout_file.read()
+            stderr = stderr_file.read()
+    except OSError as exc:
+        LOGGER.exception("Failed to start FFmpeg")
+        return subprocess.CompletedProcess(args, 1, "", str(exc))
+
+    LOGGER.debug("FFmpeg return code: %s", returncode)
+    if stdout.strip():
+        LOGGER.debug("FFmpeg stdout:\n%s", stdout.strip())
+    if stderr.strip():
+        LOGGER.debug("FFmpeg stderr:\n%s", stderr.strip())
+
+    return subprocess.CompletedProcess(args, returncode, stdout, stderr)
+
+
 def require_tool(binary: str) -> bool:
     found = shutil.which(binary)
     LOGGER.info("Tool check: %s -> %s", binary, found or "not found")
@@ -229,13 +292,6 @@ def print_header(text: str) -> None:
     print(color("=" * 80, C.BLUE))
     print(color(text, C.BOLD + C.CYAN))
     print(color("=" * 80, C.BLUE))
-
-
-def print_section(text: str) -> None:
-    print()
-    print(color("-" * 80, C.GRAY))
-    print(color(text, C.BOLD + C.WHITE))
-    print(color("-" * 80, C.GRAY))
 
 
 EXIT_TOKENS = {"q", "quit", "exit"}
@@ -254,27 +310,22 @@ def prompt_label(prompt: str) -> str:
 
 
 def option_suffix(default: Optional[str], allow_back: bool) -> str:
-    default_part = f" [{default}]" if default else ""
-    nav_parts: List[str] = []
-    nav_parts.append("quit=exit")
-    if allow_back:
-        nav_parts.append("0=Back")
-    return f"{default_part} {{{', '.join(nav_parts)}}}"
-
-
-def option_list_suffix(default: Optional[str], allow_back: bool) -> str:
     parts: List[str] = []
     if default:
-        parts.append(default)
-    parts.append("quit=exit")
+        parts.append(f"[{default}]")
+
+    nav_parts: List[str] = []
+    nav_parts.append("q/quit=exit")
     if allow_back:
-        parts.append("0=Back")
-    return f" [{', '.join(parts)}]"
+        nav_parts.append("0=Back")
+    parts.append(f"{{{', '.join(nav_parts)}}}")
+
+    return " ".join(parts)
 
 
 def read_menu_input(prompt: str, default: Optional[str] = None, allow_back: bool = True) -> str:
     while True:
-        raw = input(f"{prompt_label(prompt)}{option_suffix(default, allow_back)}: ").strip()
+        raw = input(f"{prompt_label(prompt)} {option_suffix(default, allow_back)}: ").strip()
         lowered = raw.lower()
 
         if lowered in EXIT_TOKENS:
@@ -320,6 +371,15 @@ def normalize_path_text(raw: str) -> Path:
     return Path(raw.strip().strip('"').strip("'")).expanduser()
 
 
+def absolute_path_for_display(path: Path) -> Path:
+    try:
+        return path.resolve()
+    except OSError:
+        if path.is_absolute():
+            return path
+        return (Path.cwd() / path).absolute()
+
+
 def input_path_from_args(args: Sequence[str]) -> Optional[Path]:
     if not args:
         return None
@@ -337,31 +397,53 @@ def ask_output_base_path(input_root: Path) -> Path:
     while True:
         raw = read_menu_input("Output folder path [Enter=input parent folder]", allow_back=True)
         if not raw:
+            print(info(f"Using input parent folder: {absolute_path_for_display(default_base)}"))
             return default_base
+
+        if raw.lower() in {"y", "yes", "n", "no", "y/n", "yes/no", "n/y", "no/yes"}:
+            print(warn("Please enter a folder path, or press Enter to use the input parent folder."))
+            continue
 
         path = normalize_path_text(raw)
         if path.exists() and not path.is_dir():
             print(err(f"Output path exists but is not a folder: {path}"))
             continue
+
+        if path.suffix.lower() in VIDEO_EXTENSIONS:
+            print(err("Output path must be a folder, not a media file name."))
+            continue
+
+        if path.suffix and not path.exists():
+            print(warn(f"This output folder name has an extension: {path.name}"))
+            if not ask_yes_no("Use this as a folder path?", False):
+                continue
+
+        if not path.is_absolute():
+            resolved = absolute_path_for_display(path)
+            print(warn(f"Relative output folder will resolve to: {resolved}"))
+            if not ask_yes_no("Use this relative output folder?", False):
+                continue
+            return resolved
+
         return path
 
 
 def ask_yes_no(prompt: str, default: bool = True, allow_back: bool = True) -> bool:
     suffix = "Y/n" if default else "y/N"
     while True:
-        raw = read_menu_input(prompt, default=suffix, allow_back=allow_back).lower()
-        if raw == suffix.lower():
+        raw = read_menu_input(f"{prompt} [{suffix}]", allow_back=allow_back).lower()
+        if not raw:
             return default
         if raw in {"y", "yes"}:
             return True
         if raw in {"n", "no"}:
             return False
-        print(warn("Please enter y or n."))
+        print(warn("Please enter y or n, or press Enter for the default."))
 
 
 def print_metadata_note() -> None:
-    print("Keep metadata: True")
-    print(dim("  Preserves supported source metadata such as titles, language tags, chapters, and stream labels."))
+    print("Metadata note:")
+    print(dim("  Keeping metadata preserves supported titles, language tags, chapters, and stream labels."))
 
 
 def ask_choice(prompt: str, valid: Iterable[str], default: str, allow_back: bool = True) -> str:
@@ -377,6 +459,14 @@ def parse_csv_text(raw: str) -> List[str]:
     return [x.strip().lower() for x in raw.split(",") if x.strip()]
 
 
+def ask_csv_text_required(prompt: str) -> List[str]:
+    while True:
+        values = parse_csv_text(ask_text(prompt))
+        if values:
+            return values
+        print(warn("Please enter at least one value."))
+
+
 def parse_csv_int(raw: str) -> List[int]:
     result: List[int] = []
     for part in raw.split(","):
@@ -390,7 +480,26 @@ def parse_csv_int(raw: str) -> List[int]:
     return result
 
 
+def ask_csv_int_required(prompt: str, available_indexes: Optional[List[int]] = None) -> List[int]:
+    while True:
+        indexes = parse_csv_int(ask_text(prompt))
+        if not indexes:
+            print(warn("Please enter at least one stream index."))
+            continue
+
+        if available_indexes is not None:
+            unknown_indexes = sorted(set(indexes) - set(available_indexes))
+            if unknown_indexes:
+                print(warn(f"These indexes were not found in the scan: {format_index_list(unknown_indexes)}"))
+                if not ask_yes_no("Keep these indexes anyway?", False):
+                    continue
+
+        return indexes
+
+
 def format_elapsed_time(seconds: float) -> str:
+    if seconds < 0:
+        LOGGER.warning("Negative elapsed time received: %s", seconds)
     total_seconds = max(0, int(round(seconds)))
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -410,6 +519,24 @@ def find_video_files(input_path: Path) -> List[Path]:
             files.append(path)
 
     return sorted(files, key=lambda p: str(p).lower())
+
+
+def find_non_video_extensions(input_path: Path) -> List[str]:
+    extensions = set()
+
+    if input_path.is_file():
+        suffix = input_path.suffix.lower() or "[no extension]"
+        if suffix not in VIDEO_EXTENSIONS:
+            return [suffix]
+        return []
+
+    for path in input_path.rglob("*"):
+        if path.is_file():
+            suffix = path.suffix.lower() or "[no extension]"
+            if suffix not in VIDEO_EXTENSIONS:
+                extensions.add(suffix)
+
+    return sorted(extensions)
 
 
 def probe_file(path: Path) -> Optional[MediaFile]:
@@ -440,7 +567,13 @@ def probe_file(path: Path) -> Optional[MediaFile]:
         print(err(f"[PROBE FAILED] Invalid JSON from ffprobe: {path}"))
         return None
 
-    streams = [StreamInfo.from_ffprobe(s) for s in data.get("streams", [])]
+    raw_streams = data.get("streams") or []
+    if not isinstance(raw_streams, list):
+        LOGGER.error("Probe returned invalid streams data for %s: %r", path, raw_streams)
+        print(err(f"[PROBE FAILED] Invalid streams data from ffprobe: {path}"))
+        return None
+
+    streams = [StreamInfo.from_ffprobe(s) for s in raw_streams if isinstance(s, dict)]
     LOGGER.info(
         "Probe OK: %s | video=%s audio=%s subtitle=%s attachment=%s",
         path,
@@ -474,7 +607,7 @@ def format_stream(stream: StreamInfo) -> str:
     default = "yes" if stream.disposition_default else "no"
 
     index_part = color(f"index={stream.index:<3}", C.WHITE)
-    lang_part = color(f"lang={lang:<6}", C.GREEN if lang.lower() in {"jpn", "ja", "japanese"} else C.YELLOW)
+    lang_part = color(f"lang={lang:<6}", language_color(lang))
     title_part = color(f"title={title:<25}", C.CYAN)
     codec_part = color(f"codec={codec:<10}", C.WHITE)
     default_part = color(f"default={default}", C.GREEN if default == "yes" else C.GRAY)
@@ -490,6 +623,13 @@ def format_stream(stream: StreamInfo) -> str:
 
     type_part = color(f"type={stream.codec_type:<9}", C.GRAY)
     return f"{index_part} {type_part} {lang_part} {title_part} {codec_part}"
+
+
+def language_color(language: str) -> str:
+    normalized = (language or "und").lower()
+    if normalized in {"", "und", "unknown"}:
+        return C.GRAY
+    return LANGUAGE_COLORS[sum(ord(ch) for ch in normalized) % len(LANGUAGE_COLORS)]
 
 
 def print_scan_report(media_files: List[MediaFile], root: Path) -> None:
@@ -519,24 +659,38 @@ def print_scan_report(media_files: List[MediaFile], root: Path) -> None:
             print(dim("  Subtitles: none"))
 
 
+def add_stream_summary(
+    summary: Dict[Tuple[str, str, str], Tuple[int, str, str, str]],
+    stream: StreamInfo,
+) -> None:
+    lang = stream.language or "und"
+    title = stream.title or ""
+    codec = stream.codec_name or ""
+    key = (lang.lower(), title.lower(), codec.lower())
+    if key in summary:
+        count, display_lang, display_title, display_codec = summary[key]
+        summary[key] = (count + 1, display_lang, display_title, display_codec)
+    else:
+        summary[key] = (1, lang, title, codec)
+
+
 def print_unique_summary(media_files: List[MediaFile]) -> None:
-    audio_summary: Dict[Tuple[str, str, str], int] = {}
-    subtitle_summary: Dict[Tuple[str, str, str], int] = {}
+    audio_summary: Dict[Tuple[str, str, str], Tuple[int, str, str, str]] = {}
+    subtitle_summary: Dict[Tuple[str, str, str], Tuple[int, str, str, str]] = {}
 
     for media in media_files:
         for s in media.audio_streams:
-            key = (s.language.lower(), s.title.lower(), s.codec_name.lower())
-            audio_summary[key] = audio_summary.get(key, 0) + 1
+            add_stream_summary(audio_summary, s)
 
         for s in media.subtitle_streams:
-            key = (s.language.lower(), s.title.lower(), s.codec_name.lower())
-            subtitle_summary[key] = subtitle_summary.get(key, 0) + 1
+            add_stream_summary(subtitle_summary, s)
 
     print_header("UNIQUE STREAM SUMMARY")
 
     print(color("Audio streams found:", C.BLUE))
     if audio_summary:
-        for (lang, title, codec), count in sorted(audio_summary.items()):
+        for key in sorted(audio_summary):
+            count, lang, title, codec = audio_summary[key]
             print(f"  count={count:<4} lang={lang or 'und':<6} title={title or '-':<30} codec={codec or '-'}")
     else:
         print(dim("  none"))
@@ -544,7 +698,8 @@ def print_unique_summary(media_files: List[MediaFile]) -> None:
     print()
     print(color("Subtitle streams found:", C.BOLD + C.YELLOW))
     if subtitle_summary:
-        for (lang, title, codec), count in sorted(subtitle_summary.items()):
+        for key in sorted(subtitle_summary):
+            count, lang, title, codec = subtitle_summary[key]
             print(f"  count={count:<4} lang={lang or 'und':<6} title={title or '-':<30} codec={codec or '-'}")
     else:
         print(dim("  none"))
@@ -638,19 +793,26 @@ def configure_rules_advanced(media_files: List[MediaFile]) -> SelectionRules:
     print("  3 = keep audio by exact stream indexes, example: 2,3")
     print("  4 = keep all audio")
     print("  5 = remove all audio")
-    audio_mode = ask_choice("Choose audio mode", {"1", "2", "3", "4", "5"}, "1")
+    audio_mode = ask_choice(
+        "Choose audio mode",
+        {AUDIO_BY_LANGUAGE, AUDIO_BY_TITLE, AUDIO_BY_INDEX, AUDIO_ALL, AUDIO_NONE},
+        AUDIO_BY_LANGUAGE,
+    )
 
     audio_languages: List[str] = []
     audio_titles: List[str] = []
     audio_indexes: List[int] = []
 
-    if audio_mode == "1":
+    if audio_mode == AUDIO_BY_LANGUAGE:
         print(info(f"Audio languages found: {format_text_list(audio_language_options)}"))
-        audio_languages = parse_csv_text(ask_text("Audio language codes to KEEP from the list above"))
-    elif audio_mode == "2":
-        audio_titles = parse_csv_text(ask_text("Audio title text to KEEP, example japanese,commentary"))
-    elif audio_mode == "3":
-        audio_indexes = parse_csv_int(ask_text("Audio stream indexes to KEEP, example 2,3"))
+        audio_languages = ask_csv_text_required("Audio language codes to KEEP from the list above")
+    elif audio_mode == AUDIO_BY_TITLE:
+        audio_titles = ask_csv_text_required("Audio title text to KEEP, example japanese,commentary")
+    elif audio_mode == AUDIO_BY_INDEX:
+        audio_indexes = ask_csv_int_required(
+            "Audio stream indexes to KEEP, example 2,3",
+            stream_indexes_for(media_files, "audio"),
+        )
 
     print()
     print("Subtitle selection modes:")
@@ -658,23 +820,30 @@ def configure_rules_advanced(media_files: List[MediaFile]) -> SelectionRules:
     print(f"  2 = keep subtitles by language codes. Found: {format_text_list(subtitle_language_options)}")
     print("  3 = keep subtitles by title text, example: Signs,Full")
     print("  4 = keep subtitles by exact stream indexes, example: 3,4")
-    print("  5 = keep all subtitles")
-    subtitle_mode = ask_choice("Choose subtitle mode", {"1", "2", "3", "4", "5"}, "1")
+    print("  5 = keep all subtitles [default]")
+    subtitle_mode = ask_choice(
+        "Choose subtitle mode",
+        {SUBTITLE_NONE, SUBTITLE_BY_LANGUAGE, SUBTITLE_BY_TITLE, SUBTITLE_BY_INDEX, SUBTITLE_ALL},
+        SUBTITLE_ALL,
+    )
 
     subtitle_languages: List[str] = []
     subtitle_titles: List[str] = []
     subtitle_indexes: List[int] = []
 
-    if subtitle_mode == "2":
+    if subtitle_mode == SUBTITLE_BY_LANGUAGE:
         print(info(f"Subtitle languages found: {format_text_list(subtitle_language_options)}"))
-        subtitle_languages = parse_csv_text(ask_text("Subtitle language codes to KEEP from the list above"))
-    elif subtitle_mode == "3":
-        subtitle_titles = parse_csv_text(ask_text("Subtitle title text to KEEP, example signs,full"))
-    elif subtitle_mode == "4":
-        subtitle_indexes = parse_csv_int(ask_text("Subtitle stream indexes to KEEP, example 3,4"))
+        subtitle_languages = ask_csv_text_required("Subtitle language codes to KEEP from the list above")
+    elif subtitle_mode == SUBTITLE_BY_TITLE:
+        subtitle_titles = ask_csv_text_required("Subtitle title text to KEEP, example signs,full")
+    elif subtitle_mode == SUBTITLE_BY_INDEX:
+        subtitle_indexes = ask_csv_int_required(
+            "Subtitle stream indexes to KEEP, example 3,4",
+            stream_indexes_for(media_files, "subtitle"),
+        )
 
     print()
-    if subtitle_mode == "1":
+    if subtitle_mode == SUBTITLE_NONE:
         keep_attachments = False
         print(warn("Subtitle mode is remove-all, so font attachments will also be removed."))
     else:
@@ -717,21 +886,21 @@ def configure_rules(media_files: List[MediaFile]) -> SelectionRules:
     audio_mode, audio_indexes = ask_keep_indexes(
         "Audio",
         stream_indexes_for(media_files, "audio"),
-        exact_mode="3",
-        all_mode="4",
-        none_mode="5",
+        exact_mode=AUDIO_BY_INDEX,
+        all_mode=AUDIO_ALL,
+        none_mode=AUDIO_NONE,
     )
 
     subtitle_mode, subtitle_indexes = ask_keep_indexes(
         "Subtitle",
         stream_indexes_for(media_files, "subtitle"),
-        exact_mode="4",
-        all_mode="5",
-        none_mode="1",
+        exact_mode=SUBTITLE_BY_INDEX,
+        all_mode=SUBTITLE_ALL,
+        none_mode=SUBTITLE_NONE,
     )
 
     print()
-    if subtitle_mode == "1":
+    if subtitle_mode == SUBTITLE_NONE:
         keep_attachments = False
         print(warn("Subtitle selection is none, so font attachments will also be removed."))
     else:
@@ -766,19 +935,19 @@ def text_matches_any(value: str, needles: List[str]) -> bool:
 def selected_audio_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
     audio = media.audio_streams
 
-    if rules.audio_mode == "1":
+    if rules.audio_mode == AUDIO_BY_LANGUAGE:
         return [s for s in audio if s.language.lower() in rules.audio_languages]
 
-    if rules.audio_mode == "2":
+    if rules.audio_mode == AUDIO_BY_TITLE:
         return [s for s in audio if text_matches_any(s.title, rules.audio_titles)]
 
-    if rules.audio_mode == "3":
+    if rules.audio_mode == AUDIO_BY_INDEX:
         return [s for s in audio if s.index in rules.audio_indexes]
 
-    if rules.audio_mode == "4":
+    if rules.audio_mode == AUDIO_ALL:
         return audio
 
-    if rules.audio_mode == "5":
+    if rules.audio_mode == AUDIO_NONE:
         return []
 
     return []
@@ -787,19 +956,19 @@ def selected_audio_streams(media: MediaFile, rules: SelectionRules) -> List[Stre
 def selected_subtitle_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
     subtitles = media.subtitle_streams
 
-    if rules.subtitle_mode == "1":
+    if rules.subtitle_mode == SUBTITLE_NONE:
         return []
 
-    if rules.subtitle_mode == "2":
+    if rules.subtitle_mode == SUBTITLE_BY_LANGUAGE:
         return [s for s in subtitles if s.language.lower() in rules.subtitle_languages]
 
-    if rules.subtitle_mode == "3":
+    if rules.subtitle_mode == SUBTITLE_BY_TITLE:
         return [s for s in subtitles if text_matches_any(s.title, rules.subtitle_titles)]
 
-    if rules.subtitle_mode == "4":
+    if rules.subtitle_mode == SUBTITLE_BY_INDEX:
         return [s for s in subtitles if s.index in rules.subtitle_indexes]
 
-    if rules.subtitle_mode == "5":
+    if rules.subtitle_mode == SUBTITLE_ALL:
         return subtitles
 
     return []
@@ -848,12 +1017,11 @@ def build_ffmpeg_command(
 
     cmd += ["-c", "copy"]
 
-    # Make the first kept audio/subtitle default.
-    if audio_keep:
-        cmd += ["-disposition:a:0", "default"]
+    for index in range(len(audio_keep)):
+        cmd += [f"-disposition:a:{index}", "+default" if index == 0 else "-default"]
 
-    if subtitles_keep:
-        cmd += ["-disposition:s:0", "default"]
+    for index in range(len(subtitles_keep)):
+        cmd += [f"-disposition:s:{index}", "+default" if index == 0 else "-default"]
 
     cmd += [str(output_file)]
 
@@ -866,6 +1034,8 @@ INVALID_FILENAME_CHARS = '<>:"/\\|?*'
 def sanitize_filename_part(value: str, fallback: str = "Muxed") -> str:
     cleaned = "".join("-" if ch in INVALID_FILENAME_CHARS else ch for ch in value)
     cleaned = " ".join(cleaned.split()).strip(" .")
+    if not any(ch.isalnum() for ch in cleaned):
+        return fallback
     return cleaned or fallback
 
 
@@ -895,35 +1065,35 @@ def compact_labels(values: Sequence[str], max_items: int = 3) -> str:
     if not unique:
         return ""
     if len(unique) > max_items:
-        return "+".join(unique[:max_items]) + "+"
+        return "+".join(unique[:max_items]) + "+..."
     return "+".join(unique)
 
 
 def stream_rule_part(kind: str, mode: str, languages: List[str], titles: List[str], indexes: List[int]) -> str:
     if kind == "audio":
-        if mode == "1" and languages:
+        if mode == AUDIO_BY_LANGUAGE and languages:
             return f"{compact_labels(languages)} Audio"
-        if mode == "2" and titles:
+        if mode == AUDIO_BY_TITLE and titles:
             return "Selected Audio"
-        if mode == "3" and indexes:
+        if mode == AUDIO_BY_INDEX and indexes:
             return "Audio " + "+".join(str(index) for index in indexes[:4])
-        if mode == "4":
+        if mode == AUDIO_ALL:
             return "All Audio"
-        if mode == "5":
+        if mode == AUDIO_NONE:
             return "No Audio"
-        return "Audio"
+        return "No Audio Match"
 
-    if mode == "1":
+    if mode == SUBTITLE_NONE:
         return "No Subs"
-    if mode == "2" and languages:
+    if mode == SUBTITLE_BY_LANGUAGE and languages:
         return f"{compact_labels(languages)} Subs"
-    if mode == "3" and titles:
+    if mode == SUBTITLE_BY_TITLE and titles:
         return "Selected Subs"
-    if mode == "4" and indexes:
+    if mode == SUBTITLE_BY_INDEX and indexes:
         return "Subs " + "+".join(str(index) for index in indexes[:4])
-    if mode == "5":
+    if mode == SUBTITLE_ALL:
         return "All Subs"
-    return "Subs"
+    return "No Subtitle Match"
 
 
 def selection_suffix(rules: SelectionRules) -> str:
@@ -978,18 +1148,20 @@ def make_output_path(input_root: Path, output_root: Path, input_file: Path, rule
         suffix = selection_suffix(rules)
         filename = sanitize_filename_part(f"{input_file.stem} {suffix}") + input_file.suffix
         output_file = output_root / filename
-        try:
-            if output_file.resolve() == input_file.resolve():
-                output_file = unique_path(output_file)
-        except OSError:
-            pass
-        if output_file.exists() and not rules.overwrite:
-            output_file = unique_path(output_file)
-        return output_file
     else:
         rel = input_file.relative_to(input_root)
+        output_file = output_root / rel
 
-    return output_root / rel
+    try:
+        if output_file.resolve() == input_file.resolve():
+            output_file = unique_path(output_file)
+    except OSError:
+        pass
+
+    if output_file.exists() and not rules.overwrite:
+        output_file = unique_path(output_file)
+
+    return output_file
 
 
 def display_path(input_root: Path, input_file: Path) -> Path:
@@ -1011,16 +1183,27 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
     total = len(media_files)
     succeeded = 0
     skipped = 0
+    no_audio = 0
     failed = 0
-
-    output_root.mkdir(parents=True, exist_ok=True)
 
     for i, media in enumerate(media_files, start=1):
         input_file = media.path
-        output_file = make_output_path(input_root, output_root, input_file, rules)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-
         rel = display_path(input_root, input_file)
+
+        try:
+            output_file = make_output_path(input_root, output_root, input_file, rules)
+        except RuntimeError as exc:
+            print(err(f"[{i}/{total}] FAILED: {exc}"))
+            LOGGER.exception("Could not resolve output path for %s", input_file)
+            failed += 1
+            continue
+
+        audio_keep = selected_audio_streams(media, rules)
+        if rules.audio_mode != AUDIO_NONE and not audio_keep:
+            print(warn(f"[{i}/{total}] SKIP no matching audio selected: {rel}"))
+            LOGGER.warning("No matching audio selected: %s", input_file)
+            no_audio += 1
+            continue
 
         if output_file.exists() and not rules.overwrite:
             print(warn(f"[{i}/{total}] SKIP exists: {rel}"))
@@ -1044,14 +1227,18 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
             print(warn(f"[{i}/{total}] WARNING: no video stream found: {rel}"))
             LOGGER.warning("No video stream found: %s", input_file)
 
-        if rules.audio_mode != "5" and not audio_keep:
-            print(warn(f"[{i}/{total}] WARNING: no matching audio selected: {rel}"))
-            LOGGER.warning("No matching audio selected: %s", input_file)
-
         print(info(f"[{i}/{total}] Remuxing: {rel}"))
         print(dim(f"          audio kept: {len(audio_keep)} | subtitles kept: {len(subtitles_keep)} | attachments: {'yes' if rules.keep_attachments else 'no'}"))
 
-        proc = run_command(cmd)
+        try:
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            failed += 1
+            LOGGER.exception("Could not create output folder for %s", output_file)
+            print(err(f"          FAILED to create output folder: {exc}"))
+            continue
+
+        proc = run_ffmpeg_command(cmd)
 
         if proc.returncode == 0:
             succeeded += 1
@@ -1069,21 +1256,23 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
     print(color(f"Total:   {total}", C.WHITE))
     print(ok(f"OK:      {succeeded}"))
     print(warn(f"Skipped: {skipped}"))
+    print(warn(f"No audio match: {no_audio}"))
     print(err(f"Failed:  {failed}") if failed else ok(f"Failed:  {failed}"))
     print(info(f"Output:  {output_root}"))
     print(info(f"Total time elapsed: {format_elapsed_time(elapsed)}"))
     LOGGER.info(
-        "Processing done: total=%s ok=%s skipped=%s failed=%s elapsed=%s output=%s",
+        "Processing done: total=%s ok=%s skipped=%s no_audio_match=%s failed=%s elapsed=%s output=%s",
         total,
         succeeded,
         skipped,
+        no_audio,
         failed,
         format_elapsed_time(elapsed),
         output_root,
     )
 
 
-def verify_output(root: Path) -> None:
+def verify_output(root: Path, rules: Optional[SelectionRules] = None) -> None:
     print_header("VERIFY OUTPUT FOLDER")
 
     files = find_video_files(root)
@@ -1104,7 +1293,8 @@ def verify_output(root: Path) -> None:
         audio_langs = ",".join(s.language for s in media.audio_streams) or "-"
         subtitle_langs = ",".join(s.language for s in media.subtitle_streams) or "-"
 
-        status_color = C.GREEN if video_count >= 1 and audio_count >= 1 else C.YELLOW
+        audio_expected = rules is None or rules.audio_mode != AUDIO_NONE
+        status_color = C.GREEN if video_count >= 1 and (audio_count >= 1 or not audio_expected) else C.YELLOW
         print(color(
             f"{rel} | video={video_count} | audio={audio_count} [{audio_langs}] | "
             f"subs={subtitle_count} [{subtitle_langs}] | attachments={attachment_count}",
@@ -1136,72 +1326,97 @@ def main_menu() -> None:
             print(info(f"Log file: {LOG_FILE}"))
         sys.exit(1)
 
-    input_root = input_path_from_args(sys.argv[1:])
-    if input_root is not None:
-        print(info(f"Input from launcher/drag-drop: {input_root}"))
-        LOGGER.info("Input from args: %s", input_root)
-        if not input_root.exists():
-            LOGGER.warning("Input path from args does not exist: %s", input_root)
-            print(err(f"Path does not exist: {input_root}"))
-            input_root = None
-
-    if input_root is None:
-        input_root = ask_path(
-            "Input file or folder path (drag/drop here, then press Enter)",
-            must_exist=True,
-            allow_back=False,
-        )
-    LOGGER.info("Input root: %s", input_root)
-
-    files = find_video_files(input_root)
-    if not files:
-        LOGGER.warning("No supported video files found under %s", input_root)
-        print(warn("No supported video files found."))
-        print(f"Supported extensions: {', '.join(sorted(VIDEO_EXTENSIONS))}")
-        sys.exit(1)
-
-    print(ok(f"Found {len(files)} video file(s)."))
-    LOGGER.info("Found %s video file(s)", len(files))
-
-    media_files = scan_files(files)
-    if not media_files:
-        print(err("No files could be scanned successfully."))
-        sys.exit(1)
-
-    print_scan_report(media_files, input_root)
-    print_unique_summary(media_files)
+    input_from_args = input_path_from_args(sys.argv[1:])
 
     while True:
-        print()
-        action = ask_choice(
-            "Choose action: 1=process files, 2=scan only, 3=verify another folder",
-            {"1", "2", "3"},
-            "1",
-            allow_back=False,
-        )
+        input_root = input_from_args
+        input_from_args = None
 
-        if action == "2":
-            LOGGER.info("User selected scan only")
-            print(ok("Scan only completed."))
-            return
+        if input_root is not None:
+            print(info(f"Input from launcher/drag-drop: {input_root}"))
+            LOGGER.info("Input from args: %s", input_root)
+            if not input_root.exists():
+                LOGGER.warning("Input path from args does not exist: %s", input_root)
+                print(err(f"Path does not exist: {input_root}"))
+                input_root = None
 
-        if action == "3":
+        if input_root is None:
+            input_root = ask_path(
+                "Input file or folder path (drag/drop here, then press Enter)",
+                must_exist=True,
+                allow_back=False,
+            )
+        LOGGER.info("Input root: %s", input_root)
+
+        files = find_video_files(input_root)
+        if not files:
+            LOGGER.warning("No supported video files found under %s", input_root)
+            print(warn("No supported video files found."))
+            print(f"Supported extensions: {', '.join(sorted(VIDEO_EXTENSIONS))}")
+            skipped_extensions = find_non_video_extensions(input_root)
+            if skipped_extensions:
+                shown = ", ".join(skipped_extensions[:12])
+                suffix = ", ..." if len(skipped_extensions) > 12 else ""
+                print(warn(f"Other file extensions found: {shown}{suffix}"))
+            sys.exit(1)
+
+        print(ok(f"Found {len(files)} video file(s)."))
+        LOGGER.info("Found %s video file(s)", len(files))
+
+        media_files = scan_files(files)
+        if not media_files:
+            print(err("No files could be scanned successfully."))
+            sys.exit(1)
+
+        print_scan_report(media_files, input_root)
+        print_unique_summary(media_files)
+
+        restart_input = False
+        while True:
+            print()
             try:
-                verify_root = ask_path("File or folder to verify", must_exist=True)
+                action = ask_choice(
+                    "Choose action: 1=process files, 2=scan only, 3=verify another folder",
+                    {"1", "2", "3"},
+                    "1",
+                    allow_back=True,
+                )
             except MenuBack:
-                continue
-            LOGGER.info("User selected verify folder: %s", verify_root)
-            verify_output(verify_root)
-            return
+                LOGGER.info("Back requested; returning to input path")
+                print(warn("Back. Returning to input path."))
+                restart_input = True
+                break
 
-        break
+            if action == "2":
+                LOGGER.info("User selected scan only")
+                print(ok("Scan only completed."))
+                return
+
+            if action == "3":
+                try:
+                    verify_root = ask_path("File or folder to verify", must_exist=True)
+                except MenuBack:
+                    continue
+                LOGGER.info("User selected verify folder: %s", verify_root)
+                verify_output(verify_root)
+                return
+
+            break
+
+        if not restart_input:
+            break
 
     while True:
         try:
             rules = configure_rules(media_files)
 
             output_base = ask_output_base_path(input_root)
-            output_root = resolve_output_root(input_root, output_base, rules)
+            try:
+                output_root = resolve_output_root(input_root, output_base, rules)
+            except RuntimeError as exc:
+                LOGGER.exception("Could not resolve output root")
+                print(err(f"Could not create a safe output root: {exc}"))
+                continue
 
             LOGGER.info("Configured output base: %s", output_base)
             LOGGER.info("Resolved output root: %s", output_root)
@@ -1238,7 +1453,7 @@ def main_menu() -> None:
 
     try:
         if ask_yes_no("Verify output folder now?", True):
-            verify_output(output_root)
+            verify_output(output_root, rules)
     except MenuBack:
         LOGGER.info("Back requested after processing; verification skipped")
         print(warn("Back. Verification skipped."))

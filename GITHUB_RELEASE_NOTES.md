@@ -1,22 +1,53 @@
-# MuxCls v1.0.0
+# MuxCls v1.1.0
 
-MuxCls v1.0.0 is the first public release of a Windows-friendly FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
+Version tag suggestion: `v1.1.0`
 
-MuxCls uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, audio, or subtitles.
+MuxCls v1.1.0 focuses on safer remux output, stronger stream-selection validation, cleaner Windows launchers, and release-ready documentation.
 
-## Features
+MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, audio, or subtitles.
 
-- Recursively scans folders for `.mkv`, `.mp4`, `.m4v`, `.webm`, `.mov`, and `.avi` files.
-- Displays audio and subtitle stream indexes, languages, titles, codecs, channels, and default flags.
-- Keeps streams by exact index, language code, title text, all, or none.
-- Provides advanced selection prompts with detected audio and subtitle languages.
-- Supports drag-and-drop paths in the terminal prompt.
-- Preserves folder structure for folder-mode processing.
-- Creates selection-based output names such as `SeriesName [JA Audio + EN Subs]`.
-- Avoids overwriting existing output by default and adds numeric suffixes when needed.
-- Can keep metadata, chapters, stream labels, language tags, and MKV font attachments when selected.
-- Writes detailed UTF-8 logs to a local `Logs` folder.
-- Includes Windows launchers and an optional user `PATH` installer for the `MuxCls` command.
+## Added
+
+- Added `Uninstall-MuxClsCommand.ps1` to remove the project folder from the current user's `PATH`.
+- Added PowerShell 7 preference in `MuxCls.cmd`, with fallback to Windows PowerShell.
+- Added periodic `still remuxing...` console updates during long FFmpeg runs.
+- Added non-video extension hints when an input path contains files but no supported videos.
+- Added explicit `q` support to menu navigation hints.
+
+## Changed
+
+- Updated runtime version to `1.1.0`.
+- Advanced subtitle selection now defaults to keeping all subtitles.
+- Output folder prompts now reject accidental yes/no answers and media-file-like paths such as `output.mkv`.
+- Relative output folders now show their resolved absolute path and require confirmation.
+- FFmpeg output is buffered to temporary files for logging while the console remains concise.
+- Stream language coloring is now deterministic across languages instead of hard-coding one language.
+- Unique stream summaries now preserve displayed title capitalization.
+- Metadata guidance in the CLI now reads as an explanatory note instead of a fixed state.
+- Verify mode now respects intentional no-audio output when audio removal was selected.
+
+## Fixed
+
+- Fixed a crash when `ffprobe` returns `{"streams": null}` or malformed stream entries.
+- Fixed silent video-only output when an audio selection rule matches no audio stream; affected files are now skipped and counted as `No audio match`.
+- Fixed multiple kept audio or subtitle streams retaining `default` disposition flags; only the first kept stream is marked default.
+- Fixed folder-mode output path collision handling so file uniqueness and self-collision checks apply consistently.
+- Fixed empty language, title, and index selections in advanced rules by re-prompting for at least one parsed value.
+- Fixed misleading output suffixes for empty or invalid selection rules.
+- Fixed invalid filename sanitization for names made only of invalid filename characters.
+- Fixed ambiguous compact language suffix truncation by using `+...`.
+- Fixed negative elapsed time handling by logging a warning.
+- Fixed prompt formatting so labels and navigation hints render with a separator.
+- Fixed ANSI color setup on Windows by using console mode APIs instead of a shell side effect.
+- Fixed PATH installer robustness with a user PATH length check and environment-change broadcast.
+
+## Removed
+
+- Removed unused internal helper functions.
+
+## Breaking Changes
+
+- None.
 
 ## Requirements
 
@@ -29,10 +60,18 @@ MuxCls uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode vide
 
 - MuxCls executes `ffprobe` and `ffmpeg` from your system `PATH`.
 - MuxCls creates output files and folders based on your selections.
-- Existing output files are skipped by default unless overwrite is enabled.
+- Existing output files are not overwritten by default; MuxCls uses safe output names and FFmpeg is run with no-overwrite mode.
 - If overwrite is enabled, FFmpeg may replace matching output files.
+- If your selected audio rule matches no audio stream in a file, that file is skipped and counted as `No audio match`.
 - `Install-MuxClsCommand.ps1` modifies the current user's `PATH` environment variable by adding the project folder.
+- `Uninstall-MuxClsCommand.ps1` removes the project folder from the current user's `PATH`.
 - Local logs may include file paths, command lines, system information, warnings, and FFmpeg output. Do not publish local `Logs` files.
+
+## Upgrade Notes
+
+- Existing users can pull the new version and keep using `.\run.ps1`, `MuxCls.cmd`, or the installed `MuxCls` command.
+- If the command was installed previously, run `.\Install-MuxClsCommand.ps1` again only if the project folder changed.
+- Use `.\Uninstall-MuxClsCommand.ps1` if you want to remove the command from the user `PATH`.
 
 ## Installation / Quick Start
 
@@ -60,20 +99,20 @@ MuxCls
 | --- | --- |
 | `MuxCls.py` | Main Python application. |
 | `run.ps1` | PowerShell launcher that finds Python and runs `MuxCls.py`. |
-| `MuxCls.cmd` | Windows command shim for running the PowerShell launcher. |
+| `MuxCls.cmd` | Windows command shim that prefers PowerShell 7 and falls back to Windows PowerShell. |
 | `Install-MuxClsCommand.ps1` | Adds the project folder to the current user's `PATH`. |
+| `Uninstall-MuxClsCommand.ps1` | Removes the project folder from the current user's `PATH`. |
 | `README.md` | Project documentation. |
 | `.gitignore` | Excludes logs, caches, local notes, temporary files, secrets, and generated output. |
 | `LICENSE` | MIT License. |
 | `ATTRIBUTION.md` | Standalone attribution notice for reuse and redistribution. |
+| `CHANGELOG.md` | Versioned project changelog. |
 
-## License
+## License and Attribution
 
 MIT License
 
 Copyright (c) 2026 Kiaro Sama
-
-## Attribution
 
 MuxCls was created by Kiaro Sama.
 
