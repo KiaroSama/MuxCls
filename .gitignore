@@ -3,6 +3,8 @@
 .Commands/**
 .Comments/
 .Comments/**
+.claude/
+.claude/**
 Commands/
 Commands/**
 
