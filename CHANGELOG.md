@@ -1,5 +1,58 @@
 # Changelog
 
+## [1.2.0] - 2026-05-26
+
+### Added
+
+- Added optional output stream metadata editing for kept audio and subtitle streams.
+- Added stream size display in scan reports when FFprobe provides enough data.
+- Added optional non-video file copying into the output folder with preserved relative paths.
+- Added unchanged-video copying with `robocopy` when selected rules do not require remuxing.
+- Added processing summary counts for remuxed files, copied unchanged files, non-video copy results, elapsed time, and total output size difference.
+- Added FFmpeg and robocopy command logging for remux and copy actions.
+
+### Changed
+
+- Updated runtime version to `1.2.0`.
+- Removed the first action menu so the workflow goes directly from scan review to stream selection and processing.
+- Processing progress now shows a live global elapsed timer only for the file currently being remuxed.
+- Scan reports and unique stream summaries now use ` | ` separators consistently.
+- Unknown language tags are displayed as `*uknown` in the interactive UI.
+- The PowerShell launcher now starts quietly while preserving ANSI-friendly console behavior.
+
+### Fixed
+
+- Fixed live elapsed progress so it uses total batch time instead of resetting per file.
+- Fixed output summary logging so size difference is written to the run log.
+- Fixed unnecessary remuxing for files that already match the selected stream and metadata rules.
+
+## [1.1.1] - 2026-05-23
+
+### Changed
+
+- Numbered menus now default to option `1`.
+- The stream selection style menu now defaults to advanced rules by language, title, or index.
+- Advanced subtitle selection now uses option `1` for keeping all subtitles and option `5` for removing subtitles.
+- Scan reports now print a full-width colored separator between file sections.
+- Stream reports now use a larger 20-color ANSI palette for clearer field highlighting.
+- Stream summary rows and menu prompts now use ANSI colors for the displayed fields and navigation hints.
+- Multi-choice menus now use a cleaner multi-line layout with green option numbers, green `(default)` markers, colored `Found:` values, and yellow example hints.
+- Yes/no prompts now keep the question text plain while coloring only the default answer letter and navigation hints.
+- Header labels are now centered, and header separators use the current terminal width while omitting the previous top separator line.
+- Stream scan rows now use ` | ` separators between fields for easier reading.
+- Processing output now prints a colored separator before each file and uses centered `Done` status lines.
+- Scan and verify headers now use title case, and verify completion prints a ready-for-next-task message before returning to the input prompt.
+- The PowerShell launcher no longer prints its startup banner, working folder, script path, or running notice.
+- PowerShell launcher now sets ANSI-friendly console environment values before starting Python.
+
+### Fixed
+
+- Fixed `0=Back` navigation so nested prompts no longer jump back multiple major steps.
+- Verification now returns to the main input prompt instead of ending the terminal session.
+- Advanced selection now skips audio questions when only one audio language exists, and skips subtitle questions when no subtitle streams exist.
+- The stream selection style prompt is also skipped when only one audio language exists.
+- Improved Windows ANSI color initialization for both stdout and stderr, with a fallback for older consoles.
+
 ## [1.1.0] - 2026-05-23
 
 ### Added
