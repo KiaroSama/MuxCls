@@ -8,18 +8,21 @@ param(
 
 $Host.UI.RawUI.WindowTitle = "MuxCls"
 
-Clear-Host
-
-Write-Host ""
-Write-Host "================================================" -ForegroundColor Cyan
-Write-Host " MuxCls Launcher" -ForegroundColor Yellow
-Write-Host "================================================" -ForegroundColor Cyan
-Write-Host ""
+try {
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+    $env:TERM = "xterm-256color"
+    if (Get-Variable -Name PSStyle -Scope Global -ErrorAction SilentlyContinue) {
+        $PSStyle.OutputRendering = "Ansi"
+    }
+}
+catch {
+    # Console color support is best-effort; the Python app also enables ANSI output.
+}
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location $ScriptDir
-
 $PythonScript = Join-Path $ScriptDir "MuxCls.py"
+
+Set-Location $ScriptDir
 
 if (-not (Test-Path $PythonScript)) {
     Write-Host "ERROR: MuxCls.py was not found next to this launcher." -ForegroundColor Red
@@ -56,15 +59,6 @@ if (-not $PythonCmd) {
     Write-Host ""
     exit 1
 }
-
-Write-Host "Working folder:" -ForegroundColor Cyan
-Write-Host $ScriptDir -ForegroundColor White
-Write-Host ""
-Write-Host "Python script:" -ForegroundColor Cyan
-Write-Host $PythonScript -ForegroundColor White
-Write-Host ""
-Write-Host "Running..." -ForegroundColor Cyan
-Write-Host ""
 
 & $PythonCmd @PythonArgs @PassThruArgs
 exit $LASTEXITCODE
