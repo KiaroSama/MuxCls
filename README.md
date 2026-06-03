@@ -21,7 +21,8 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Can preserve metadata, chapters, stream labels, language tags, and MKV font attachments when selected.
 - Can edit kept output audio and subtitle stream language/title metadata without changing the source files.
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
-- Writes detailed UTF-8 run logs to the local `Logs` folder.
+- Shows live elapsed progress while remuxing files or copying unchanged video files.
+- Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
 - Includes Windows launchers, an optional installer, and an uninstaller for the `MuxCls` command.
 
 ## Requirements
@@ -127,7 +128,7 @@ If a generated folder or file already exists, MuxCls adds a numeric suffix such 
 
 If you enter a relative output folder, MuxCls shows the resolved absolute path and asks for confirmation. If an output path looks like a media file name, such as `output.mkv`, MuxCls rejects it and asks for a folder path.
 
-If the selected rules do not require remuxing a video file, MuxCls copies that file unchanged with `robocopy` instead of running FFmpeg. When enabled, non-video files are copied to the output folder with the same relative paths as the source folder.
+If the selected rules do not require remuxing a video file, MuxCls copies that file unchanged with `robocopy` instead of running FFmpeg. Remux and unchanged-video copy operations show live elapsed progress while the current operation is running. When enabled, non-video files are copied to the output folder with the same relative paths as the source folder.
 
 After processing, the summary shows how many video files were remuxed, copied unchanged, skipped, or failed. It also reports copied non-video file counts, elapsed time, and the total size difference between the source and output.
 
@@ -176,6 +177,8 @@ MuxCls creates a `Logs` folder next to `MuxCls.py` and writes one UTF-8 log file
 ```text
 Logs\muxcls_2026-05-15_22-30-15.log
 ```
+
+Logs include startup information, FFmpeg and robocopy command lines, command return codes, warnings, captured command output, output size difference, and structured per-file `RESULT` / `SUMMARY_RESULT` lines with the action, status, input path, output path, detail, return code, and elapsed time.
 
 Logs are intended for local troubleshooting and are ignored by Git.
 

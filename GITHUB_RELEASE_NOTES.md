@@ -1,42 +1,34 @@
-# MuxCls v1.2.0
+# MuxCls v1.3.0
 
-Version tag suggestion: `v1.2.0`
+Version tag suggestion: `v1.3.0`
 
-MuxCls v1.2.0 is a minor release focused on output metadata editing, smarter copy/remux decisions, non-video file copy support, richer scan details, and clearer processing summaries.
+MuxCls v1.3.0 is a minor release focused on clearer long-copy progress and more complete processing logs for remuxed, copied, skipped, and failed files.
 
 MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, audio, or subtitles.
 
 ## Added
 
-- Added optional output stream metadata editing for kept audio and subtitle streams.
-- Added stream size display in scan reports when FFprobe provides enough data.
-- Added optional copying of non-video files to the output folder with the same relative paths.
-- Added unchanged-video copying with `robocopy` when selected stream, metadata, attachment, chapter, and overwrite rules do not require remuxing.
-- Added processing summary counts for remuxed files, copied unchanged files, extra copied files, skipped files, failed files, elapsed time, and total size difference.
-- Added FFmpeg and robocopy command logging for remux and copy actions.
+- Added live elapsed progress while unchanged video files are copied with `robocopy`.
+- Added structured per-file `RESULT` log lines with action, status, input path, output path, detail, return code, and elapsed time.
+- Added final `SUMMARY_RESULT` log lines so the end of each run contains a compact per-file outcome summary.
 
 ## Changed
 
-- Updated runtime version to `1.2.0`.
-- Removed the initial action menu so the normal flow goes directly from scan review to stream selection and processing.
-- Processing progress now shows a live global elapsed timer only for the file currently being remuxed.
-- Scan reports and unique stream summaries now use ` | ` separators consistently.
-- Unknown language tags are displayed as `*uknown` in the interactive UI.
-- The PowerShell launcher now starts quietly while preserving ANSI-friendly console behavior.
+- Updated runtime version to `1.3.0`.
+- Unchanged-video copy operations now use `robocopy /J`.
 
 ## Fixed
 
-- Fixed live elapsed progress so it uses total batch time instead of resetting per file.
-- Fixed output summary logging so size difference is written to the run log.
-- Fixed unnecessary remuxing for files that already match the selected stream and metadata rules.
+- Fixed unchanged-video copy operations appearing idle during longer copy runs.
+- Improved run logs so remuxed, copied unchanged, skipped, no-audio-match, and failed file outcomes are easier to audit.
 
 ## Removed
 
-- Removed the interactive scan-only and verify-another-folder action menu from the main workflow.
+- No user-facing features were removed in this release.
 
 ## Breaking Changes
 
-- The first action menu is no longer shown. MuxCls now proceeds directly from scan review to stream selection and processing.
+- No breaking changes.
 
 ## Requirements
 
@@ -55,13 +47,12 @@ MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encod
 - If non-video copying is enabled, non-video files are copied into the output folder using the same relative paths.
 - Optional metadata edits apply only to kept output streams. Source files are not modified.
 - If your selected audio rule matches no audio stream in a file, that file is skipped and counted as `No audio match`.
-- Local logs may include file paths, command lines, system information, warnings, and FFmpeg output. Do not publish local `Logs` files.
+- Local logs may include file paths, command lines, system information, warnings, captured command output, and file-processing results. Do not publish local `Logs` files.
 
 ## Upgrade Notes
 
 - Existing users can pull the new version and keep using `.\run.ps1`, `MuxCls.cmd`, or the installed `MuxCls` command.
-- Review the new copy prompt if your source folders include non-video files.
-- The scan-only and verify-another-folder action menu has been removed from the normal workflow.
+- Review the local log after a run if you need to audit which files were remuxed, copied unchanged, skipped, or failed.
 
 ## License and Attribution
 

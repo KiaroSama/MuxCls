@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.3.0] - 2026-06-03
+
+### Added
+
+- Added live elapsed progress while unchanged video files are copied with `robocopy`.
+- Added structured per-file `RESULT` log lines and final `SUMMARY_RESULT` log lines with action, status, input path, output path, detail, return code, and elapsed time.
+
+### Changed
+
+- Updated runtime version to `1.3.0`.
+- Unchanged-video copy operations now use `robocopy /J`.
+
+### Fixed
+
+- Fixed unchanged-video copy operations appearing idle during longer copy runs.
+- Improved processing logs so remuxed, copied, skipped, no-audio-match, and failed file outcomes are recorded clearly.
+
 ## [1.2.0] - 2026-05-26
 
 ### Added

@@ -40,7 +40,7 @@ VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi"}
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
 ROBOCOPY_BIN = "robocopy"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 
 LOGGER = logging.getLogger("MuxCls")
 LOG_FILE: Optional[Path] = None
@@ -375,6 +375,66 @@ def run_command(args: Sequence[str]) -> subprocess.CompletedProcess:
     if proc.stderr.strip():
         LOGGER.debug("Command stderr:\n%s", proc.stderr.strip())
     return proc
+
+
+def run_copy_command(args: Sequence[str], progress_started_at: Optional[float] = None) -> subprocess.CompletedProcess:
+    LOGGER.debug("Running copy command: %s", command_to_text(args))
+
+    try:
+        with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as stdout_file, \
+                tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as stderr_file:
+            proc = subprocess.Popen(
+                args,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                text=True,
+            )
+
+            started_at = progress_started_at if progress_started_at is not None else time.perf_counter()
+            last_elapsed_second = -1
+            progress_line_started = False
+            while proc.poll() is None:
+                now = time.perf_counter()
+                elapsed_second = int(now - started_at)
+                if elapsed_second != last_elapsed_second:
+                    if not progress_line_started:
+                        sys.stdout.write("\n")
+                        progress_line_started = True
+                    sys.stdout.write("\r" + color(f"          Elapsed {format_elapsed_time(elapsed_second)}", C.BOLD + C.SUMMARY_ELAPSED))
+                    sys.stdout.flush()
+                    last_elapsed_second = elapsed_second
+                time.sleep(0.2)
+
+            final_elapsed_second = int(time.perf_counter() - started_at)
+            if final_elapsed_second != last_elapsed_second:
+                if not progress_line_started:
+                    sys.stdout.write("\n")
+                    progress_line_started = True
+                sys.stdout.write("\r" + color(f"          Elapsed {format_elapsed_time(final_elapsed_second)}", C.BOLD + C.SUMMARY_ELAPSED))
+                sys.stdout.flush()
+
+            if progress_line_started:
+                sys.stdout.write("\r" + (" " * terminal_width()) + "\r\n")
+            else:
+                sys.stdout.write("\r" + (" " * terminal_width()) + "\r")
+            sys.stdout.flush()
+
+            returncode = proc.wait()
+            stdout_file.seek(0)
+            stderr_file.seek(0)
+            stdout = stdout_file.read()
+            stderr = stderr_file.read()
+    except OSError as exc:
+        LOGGER.exception("Failed to start copy command")
+        return subprocess.CompletedProcess(args, 16, "", str(exc))
+
+    LOGGER.debug("Copy command return code: %s", returncode)
+    if stdout.strip():
+        LOGGER.debug("Copy command stdout:\n%s", stdout.strip())
+    if stderr.strip():
+        LOGGER.debug("Copy command stderr:\n%s", stderr.strip())
+
+    return subprocess.CompletedProcess(args, returncode, stdout, stderr)
 
 
 def run_ffmpeg_command(args: Sequence[str], progress_started_at: Optional[float] = None) -> subprocess.CompletedProcess:
@@ -2526,6 +2586,57 @@ def robocopy_success(returncode: int) -> bool:
     return 0 <= returncode <= 7
 
 
+def append_file_result(
+    results: List[Dict[str, str]],
+    index: int,
+    total: int,
+    action: str,
+    status: str,
+    input_file: Path,
+    output_file: Optional[Path],
+    detail: str,
+    started_at: float,
+    returncode: Optional[int] = None,
+) -> None:
+    elapsed = format_elapsed_time(time.perf_counter() - started_at)
+    result = {
+        "index": f"{index}/{total}",
+        "action": action,
+        "status": status,
+        "input": str(input_file),
+        "output": str(output_file) if output_file else "-",
+        "detail": detail or "-",
+        "returncode": str(returncode) if returncode is not None else "-",
+        "elapsed": elapsed,
+    }
+    results.append(result)
+
+    message = (
+        "RESULT %(index)s | status=%(status)s | action=%(action)s | "
+        "input=%(input)s | output=%(output)s | detail=%(detail)s | "
+        "returncode=%(returncode)s | elapsed=%(elapsed)s"
+    ) % result
+
+    if status == "FAILED":
+        LOGGER.error(message)
+    elif status in {"SKIPPED", "NO_AUDIO_MATCH", "WARNING"}:
+        LOGGER.warning(message)
+    else:
+        LOGGER.info(message)
+
+
+def log_file_result_summary(results: Sequence[Dict[str, str]]) -> None:
+    LOGGER.info("Per-file result summary begin: count=%s", len(results))
+    for result in results:
+        message = (
+            "SUMMARY_RESULT %(index)s | status=%(status)s | action=%(action)s | "
+            "input=%(input)s | output=%(output)s | detail=%(detail)s | "
+            "returncode=%(returncode)s | elapsed=%(elapsed)s"
+        ) % result
+        LOGGER.info(message)
+    LOGGER.info("Per-file result summary end")
+
+
 def copy_extra_files(input_root: Path, output_root: Path, rules: SelectionRules) -> Tuple[int, int, int]:
     if input_root.is_file():
         return 0, 0, 0
@@ -2608,7 +2719,7 @@ def copy_extra_files(input_root: Path, output_root: Path, rules: SelectionRules)
     return copied, skipped, failed
 
 
-def copy_video_without_remux(input_file: Path, output_file: Path) -> None:
+def copy_video_without_remux(input_file: Path, output_file: Path, progress_started_at: Optional[float] = None) -> int:
     if shutil.which(ROBOCOPY_BIN) is None:
         raise OSError("robocopy was not found in PATH")
 
@@ -2627,10 +2738,11 @@ def copy_video_without_remux(input_file: Path, output_file: Path) -> None:
         "/NJH",
         "/NJS",
         "/NP",
+        "/J",
     ]
 
     LOGGER.info("Command: %s", command_to_text(args))
-    proc = run_command(args)
+    proc = run_copy_command(args, progress_started_at)
     if proc.stdout.strip():
         LOGGER.debug("robocopy stdout: %s", proc.stdout.strip())
     if proc.stderr.strip():
@@ -2643,6 +2755,7 @@ def copy_video_without_remux(input_file: Path, output_file: Path) -> None:
         raise OSError("robocopy did not create the output file")
     if before.get(output_file) == after.get(output_file):
         LOGGER.info("robocopy copied unchanged video but destination metadata did not change: %s", output_file)
+    return proc.returncode
 
 
 def process_files(media_files: List[MediaFile], input_root: Path, output_root: Path, rules: SelectionRules) -> None:
@@ -2660,6 +2773,7 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
     copied_unchanged = 0
     remuxed = 0
     output_files_for_size: List[Path] = []
+    file_results: List[Dict[str, str]] = []
 
     for i, media in enumerate(media_files, start=1):
         input_file = media.path
@@ -2673,6 +2787,17 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
             print(err(f"[{i}/{total}] FAILED: {exc}"))
             LOGGER.exception("Could not resolve output path for %s", input_file)
             failed += 1
+            append_file_result(
+                file_results,
+                i,
+                total,
+                "resolve-output",
+                "FAILED",
+                input_file,
+                None,
+                str(exc),
+                started_at,
+            )
             continue
 
         audio_keep = selected_audio_streams(media, rules)
@@ -2680,12 +2805,34 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
             print(warn(f"[{i}/{total}] SKIP no matching audio selected: {rel}"))
             LOGGER.warning("No matching audio selected: %s", input_file)
             no_audio += 1
+            append_file_result(
+                file_results,
+                i,
+                total,
+                "select-audio",
+                "NO_AUDIO_MATCH",
+                input_file,
+                output_file,
+                "selected audio rule matched no audio streams",
+                started_at,
+            )
             continue
 
         if output_file.exists() and not rules.overwrite:
             print(warn(f"[{i}/{total}] SKIP exists: {rel}"))
             LOGGER.warning("Skip existing output: %s", output_file)
             skipped += 1
+            append_file_result(
+                file_results,
+                i,
+                total,
+                "skip-existing",
+                "SKIPPED",
+                input_file,
+                output_file,
+                "output already exists and overwrite is disabled",
+                started_at,
+            )
             continue
 
         subtitles_keep = selected_subtitle_streams(media, rules)
@@ -2695,17 +2842,40 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
             print(dim("          no remux needed"))
             LOGGER.info("Action: copy unchanged | file=%s | reason=no remux needed", input_file)
             try:
-                copy_video_without_remux(input_file, output_file)
+                copy_returncode = copy_video_without_remux(input_file, output_file, started_at)
             except OSError as exc:
                 failed += 1
                 LOGGER.exception("Could not copy unchanged video %s -> %s", input_file, output_file)
                 print(err(f"          FAILED to copy unchanged file: {exc}"))
+                append_file_result(
+                    file_results,
+                    i,
+                    total,
+                    "copy-unchanged",
+                    "FAILED",
+                    input_file,
+                    output_file,
+                    str(exc),
+                    started_at,
+                )
                 continue
 
             succeeded += 1
             copied_unchanged += 1
             output_files_for_size.append(output_file)
             LOGGER.info("Copy unchanged OK: %s -> %s", input_file, output_file)
+            append_file_result(
+                file_results,
+                i,
+                total,
+                "copy-unchanged",
+                "OK",
+                input_file,
+                output_file,
+                "no remux needed",
+                started_at,
+                copy_returncode,
+            )
             print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
             continue
 
@@ -2737,6 +2907,17 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
             failed += 1
             LOGGER.exception("Could not create output folder for %s", output_file)
             print(err(f"          FAILED to create output folder: {exc}"))
+            append_file_result(
+                file_results,
+                i,
+                total,
+                "prepare-output",
+                "FAILED",
+                input_file,
+                output_file,
+                str(exc),
+                started_at,
+            )
             continue
 
         proc = run_ffmpeg_command(cmd, started_at)
@@ -2746,6 +2927,18 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
             remuxed += 1
             output_files_for_size.append(output_file)
             LOGGER.info("Remux OK: %s", output_file)
+            append_file_result(
+                file_results,
+                i,
+                total,
+                "remux",
+                "OK",
+                input_file,
+                output_file,
+                "; ".join(reasons),
+                started_at,
+                proc.returncode,
+            )
             print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
         else:
             failed += 1
@@ -2753,6 +2946,18 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
             print(err("          FAILED"))
             if proc.stderr.strip():
                 print(proc.stderr.strip())
+            append_file_result(
+                file_results,
+                i,
+                total,
+                "remux",
+                "FAILED",
+                input_file,
+                output_file,
+                f"ffmpeg return code {proc.returncode}",
+                started_at,
+                proc.returncode,
+            )
 
     if rules.copy_non_video_files:
         extra_copied, extra_skipped, extra_failed = copy_extra_files(input_root, output_root, rules)
@@ -2788,6 +2993,7 @@ def process_files(media_files: List[MediaFile], input_root: Path, output_root: P
     print(color(f"Output:  {output_root}", C.BOLD + C.SKY))
     print(color(f"Size difference: {formatted_size_delta}", C.BOLD + C.SUMMARY_SIZE_DIFF))
     print(color(f"Elapsed {format_elapsed_time(elapsed)}", C.BOLD + C.SUMMARY_ELAPSED))
+    log_file_result_summary(file_results)
     LOGGER.info("Original size: %s bytes", original_total_size)
     LOGGER.info("Output size: %s bytes", output_total_size)
     LOGGER.info("Size difference: %s (%s bytes)", formatted_size_delta, size_delta)
