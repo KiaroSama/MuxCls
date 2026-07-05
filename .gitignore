@@ -3,10 +3,30 @@
 .Commands/**
 .Comments/
 .Comments/**
-.claude/
-.claude/**
 Commands/
 Commands/**
+
+# AI assistant configuration directories (local-only)
+.claude/
+**/.claude/
+.kiro/
+**/.kiro/
+.codex/
+**/.codex/
+.cursor/
+**/.cursor/
+.windsurf/
+**/.windsurf/
+
+# Protected local-only files and directories
+.ignoreme
+**/.ignoreme
+/secrets.md
+secrets.md
+explain-AI.md
+
+# Graphify generated output (regenerable, machine-specific)
+graphify-out/
 
 # Logs
 Logs/
