@@ -40,7 +40,7 @@ VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi"}
 FFMPEG_BIN = "ffmpeg"
 FFPROBE_BIN = "ffprobe"
 ROBOCOPY_BIN = "robocopy"
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 
 LOGGER = logging.getLogger("MuxCls")
 LOG_FILE: Optional[Path] = None
@@ -1453,6 +1453,17 @@ def stream_languages_for(media_files: List[MediaFile], codec_type: str) -> List[
     })
 
 
+def max_stream_count_for(media_files: List[MediaFile], codec_type: str) -> int:
+    # Highest number of streams of this type found in any single file.
+    # Used to decide whether stream selection can be skipped: selection is only
+    # skippable when no file has more than one track, regardless of language.
+    counts = [
+        sum(1 for stream in media.streams if stream.codec_type == codec_type)
+        for media in media_files
+    ]
+    return max(counts) if counts else 0
+
+
 def has_unknown_language(media_files: List[MediaFile], codec_type: Optional[str] = None) -> bool:
     return any(
         (codec_type is None or stream.codec_type == codec_type)
@@ -1772,8 +1783,21 @@ def configure_rules_advanced(
 ) -> SelectionRules:
     audio_language_options = stream_languages_for(media_files, "audio")
     subtitle_language_options = stream_languages_for(media_files, "subtitle")
-    skip_audio_selection = len(audio_language_options) <= 1
+    # Skip audio selection only when no file has more than one audio track.
+    # A single language across multiple tracks is not enough to skip: the user
+    # may still want to choose which of those tracks to keep.
+    max_audio_tracks = max_stream_count_for(media_files, "audio")
+    skip_audio_selection = max_audio_tracks <= 1
     skip_subtitle_selection = not subtitle_language_options
+    LOGGER.info(
+        "Advanced rules setup: audio_languages=%s max_audio_tracks=%d skip_audio_selection=%s "
+        "subtitle_languages=%s skip_subtitle_selection=%s",
+        audio_language_options,
+        max_audio_tracks,
+        skip_audio_selection,
+        subtitle_language_options,
+        skip_subtitle_selection,
+    )
 
     if initial is None and skip_audio_selection:
         start_step = 5 if skip_subtitle_selection else 2
@@ -1809,7 +1833,7 @@ def configure_rules_advanced(
         print("Configure Output Rules:")
         if audio_language_options:
             print(format_prompt_label(f"Audio languages found: {format_text_list(audio_language_options)}"))
-            print(info("Only one audio language found; keeping all audio."))
+            print(info("Only one audio track found; keeping all audio."))
         else:
             print(warn("No audio streams found; selecting no audio."))
         if skip_subtitle_selection:
