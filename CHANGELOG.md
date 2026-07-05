@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.3.1] - 2026-07-05
+
+### Fixed
+
+- Fixed audio stream selection being skipped when a file had a single audio language but multiple audio tracks (for example, a main track plus a commentary track). Selection is now skipped only when no file has more than one audio track; multi-track files always prompt for audio selection.
+
 ## [1.3.0] - 2026-06-03
 
 ### Added
