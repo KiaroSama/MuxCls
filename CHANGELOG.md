@@ -10,6 +10,7 @@
 
 - Split the single-file `MuxCls.py` into the `muxcls/` package, organized by responsibility (constants, colors, logging, models, text/UI helpers, prompts, media, mux logic, output, reporting, selection, processing, and app). `MuxCls.py` is now a thin entry point. Behavior is unchanged.
 - Preserved the original single-file version under `archive/` at the time of the split (later removed; still recoverable from Git history, commit `7a2306d`).
+- `Install-MuxClsCommand.ps1` now registers a `MuxCls` command by adding a function to the user's PowerShell profile(s), instead of adding the project folder to `PATH`. Typing `MuxCls` in PowerShell now launches the app (previously the PATH entry never provided a working `MuxCls` command). The installer also removes any stale MuxCls folder entry left in the user `PATH` by older versions.
 
 ### Removed
 

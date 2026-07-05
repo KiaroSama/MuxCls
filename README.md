@@ -23,7 +23,7 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
 - Shows live elapsed progress while remuxing files or copying unchanged video files.
 - Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
-- Includes a PowerShell launcher (`run.ps1`) and an optional PATH installer.
+- Includes a PowerShell launcher (`run.ps1`) and an optional installer that registers a `MuxCls` command.
 
 ## Requirements
 
@@ -49,21 +49,25 @@ ffmpeg -version
 ffprobe -version
 ```
 
-You can run MuxCls directly from the project folder, or add the folder to your user `PATH`:
+You can run MuxCls directly from the project folder with `.\run.ps1`, or register a
+`MuxCls` command for your user:
 
 ```powershell
 .\Install-MuxClsCommand.ps1
 ```
 
-After installing, open a new terminal. Because the project folder is on `PATH`, you can
-run the launcher by name from any directory:
+This adds a `MuxCls` function to your PowerShell profile. After installing, open a new
+PowerShell terminal and run:
 
 ```powershell
-run.ps1
+MuxCls
 ```
 
-To remove the folder from your user `PATH` later, delete this project folder from your
-user `PATH` in Windows Environment Variables.
+The `MuxCls` command works in PowerShell only (it is a profile function). In `cmd.exe`,
+run `.\run.ps1` from the project folder instead.
+
+To remove the command later, delete the `# BEGIN MuxCls command` / `# END MuxCls command`
+block from your PowerShell profile (`$PROFILE`).
 
 ## Usage
 
@@ -141,7 +145,7 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 - Existing output files are not overwritten by default; MuxCls uses safe output names and FFmpeg is run with no-overwrite mode.
 - If overwrite is enabled, FFmpeg may replace matching output files.
 - If your selected audio rule matches no audio stream in a file, that file is skipped and counted as `No audio match`.
-- `Install-MuxClsCommand.ps1` modifies the current user's `PATH` environment variable by adding the project folder. It checks PATH length before writing and broadcasts an environment-change notification when possible.
+- `Install-MuxClsCommand.ps1` adds a `MuxCls` function to your PowerShell profile(s) and removes any stale MuxCls folder entry left in your user `PATH` by older versions. It does not add anything to `PATH`.
 - Logs can contain local file paths, command lines, system information, warnings, and FFmpeg output. Do not publish local `Logs` files.
 
 ## Repository Files
@@ -151,7 +155,7 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 | `MuxCls.py` | Thin entry point that runs the `muxcls` package. |
 | `muxcls/` | Application package, split by responsibility (see Project Structure below). |
 | `run.ps1` | PowerShell launcher that finds Python and runs `MuxCls.py`. |
-| `Install-MuxClsCommand.ps1` | Adds the project folder to the current user's `PATH`. |
+| `Install-MuxClsCommand.ps1` | Registers a `MuxCls` command via a PowerShell profile function. |
 | `README.md` | Project documentation. |
 | `.gitignore` | Excludes logs, caches, local notes, temporary files, secrets, and generated output. |
 | `LICENSE` | MIT License. |
