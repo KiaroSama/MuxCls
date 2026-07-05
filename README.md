@@ -162,12 +162,15 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 | `.gitignore` | Excludes logs, caches, local notes, temporary files, secrets, and generated output. |
 | `LICENSE` | MIT License. |
 | `ATTRIBUTION.md` | Standalone attribution notice for reuse and redistribution. |
+| `CONTRIBUTING.md` | Contribution and testing guidelines. |
+| `SECURITY.md` | Security policy and vulnerability reporting. |
 | `CHANGELOG.md` | Versioned project changelog. |
 | `GITHUB_RELEASE_NOTES.md` | Draft release notes for the next GitHub release. |
 | `tests/` | Pytest test suite (unit tests and real FFmpeg end-to-end tests). |
 | `pytest.ini` | Pytest configuration. |
 | `requirements-dev.txt` | Test-only dependencies (not required to run MuxCls). |
 | `.github/workflows/tests.yml` | GitHub Actions workflow that runs the test suite on push/PR. |
+| `.github/` | Issue/PR templates and Dependabot configuration. |
 
 ## Project Structure
 
