@@ -32,7 +32,10 @@ jobs:
         run: choco install ffmpeg -y
 
       - name: Compile check
-        run: python -m py_compile MuxCls.py muxcls/*.py
+        shell: pwsh
+        run: |
+          $files = @("MuxCls.py") + (Get-ChildItem muxcls\*.py | ForEach-Object FullName)
+          python -m py_compile @files
 
       - name: Entry-point smoke test
         shell: pwsh
