@@ -14,6 +14,7 @@
 ### Removed
 
 - Removed the `MuxCls.cmd` command shim. Use the `run.ps1` PowerShell launcher instead.
+- Removed `Uninstall-MuxClsCommand.ps1`. To remove MuxCls from `PATH`, delete the project folder from the user `PATH` in Windows Environment Variables.
 
 ## [1.3.0] - 2026-06-03
 

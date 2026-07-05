@@ -63,10 +63,10 @@ if (-not $AlreadyInstalled) {
     [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
     Send-EnvironmentChange
     Write-Host "MuxCls was added to the user PATH." -ForegroundColor Green
-    Write-Host "Open a new terminal, then run: MuxCls" -ForegroundColor Cyan
-    Write-Host "To uninstall later, run: .\Uninstall-MuxClsCommand.ps1" -ForegroundColor Cyan
+    Write-Host "Open a new terminal, then run: run.ps1" -ForegroundColor Cyan
+    Write-Host "To remove it later, delete this folder from your user PATH (Environment Variables)." -ForegroundColor Cyan
 }
 else {
     Write-Host "MuxCls is already in the user PATH." -ForegroundColor Green
-    Write-Host "To uninstall, run: .\Uninstall-MuxClsCommand.ps1" -ForegroundColor Cyan
+    Write-Host "To remove it, delete this folder from your user PATH (Environment Variables)." -ForegroundColor Cyan
 }
