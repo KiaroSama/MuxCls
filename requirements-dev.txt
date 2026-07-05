@@ -1,2 +1,2 @@
 # Development/test dependencies. Not required to run MuxCls itself.
-pytest>=8.0
+pytest>=9.1.1
