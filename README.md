@@ -152,7 +152,6 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 | `muxcls/` | Application package, split by responsibility (see Project Structure below). |
 | `run.ps1` | PowerShell launcher that finds Python and runs `MuxCls.py`. |
 | `Install-MuxClsCommand.ps1` | Adds the project folder to the current user's `PATH`. |
-| `archive/` | Preserved original single-file version from before the package split. |
 | `README.md` | Project documentation. |
 | `.gitignore` | Excludes logs, caches, local notes, temporary files, secrets, and generated output. |
 | `LICENSE` | MIT License. |
