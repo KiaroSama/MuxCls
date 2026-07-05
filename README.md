@@ -1,5 +1,7 @@
 # MuxCls
 
+Current version: **1.3.1**
+
 MuxCls is a Windows-friendly FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
 It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, audio, or subtitles. It is designed for interactive cleanup of media libraries where you want to keep selected audio tracks, subtitle tracks, metadata, chapters, and MKV attachments without changing media quality.
