@@ -3,8 +3,8 @@
 Version tag suggestion: `v1.3.1`
 
 MuxCls v1.3.1 fixes a stream-selection bug, splits the codebase into a maintainable
-package, and removes the `MuxCls.cmd` shim and the PATH uninstaller in favor of the
-PowerShell launcher and manual PATH removal.
+package, and replaces the old `.cmd`/`PATH` command setup with a `MuxCls` PowerShell profile
+function.
 
 MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video,
 audio, or subtitles.
@@ -23,18 +23,24 @@ audio, or subtitles.
   (constants, colors, logging, models, text/UI helpers, prompts, media, mux logic, output,
   reporting, selection, processing, and app). `MuxCls.py` is now a thin entry point that
   imports and runs `muxcls.app.main`. Behavior is unchanged.
+- `Install-MuxClsCommand.ps1` now registers a `MuxCls` command by adding a function to your
+  PowerShell profile(s), instead of adding the project folder to `PATH`. Typing `MuxCls` in
+  PowerShell launches the app. The installer also removes any stale MuxCls folder entry that
+  older versions left in your user `PATH`. The `MuxCls` command works in PowerShell only; in
+  `cmd.exe`, run `.\run.ps1`.
 
 ## Removed
 
-- Removed the `MuxCls.cmd` command shim. Use the `run.ps1` PowerShell launcher instead.
-- Removed `Uninstall-MuxClsCommand.ps1`. To remove MuxCls from `PATH`, delete the project
-  folder from the user `PATH` in Windows Environment Variables.
+- Removed the `MuxCls.cmd` command shim. Use the `MuxCls` command (PowerShell) or `.\run.ps1`.
+- Removed `Uninstall-MuxClsCommand.ps1`. To remove the command, delete the
+  `# BEGIN MuxCls command` / `# END MuxCls command` block from your PowerShell profile.
 
 ## Breaking Changes
 
-- The `MuxCls` command installed via `Install-MuxClsCommand.ps1` (which relied on
-  `MuxCls.cmd`) no longer resolves after installing. Run `run.ps1` by name instead once the
-  project folder is on `PATH`, or run `.\run.ps1` from the project folder directly.
+- The old install method added the project folder to `PATH`, which never produced a working
+  `MuxCls` command (there was no `MuxCls` executable on `PATH`). Re-run
+  `Install-MuxClsCommand.ps1` to register the new PowerShell `MuxCls` function; it also
+  cleans up the stale `PATH` entry.
 
 ## Requirements
 
@@ -57,10 +63,10 @@ audio, or subtitles.
 
 ## Upgrade Notes
 
-- Existing users should switch from `MuxCls.cmd` to `.\run.ps1` (or `run.ps1` if the
-  project folder is on `PATH`).
-- If you previously ran `Install-MuxClsCommand.ps1`, no action is needed; the folder is
-  still on `PATH`, only the command name changed from `MuxCls` to `run.ps1`.
+- Re-run `.\Install-MuxClsCommand.ps1` to register the new PowerShell `MuxCls` command and
+  clean up the stale `PATH` entry from older versions. Then open a new PowerShell terminal
+  and run `MuxCls`.
+- Alternatively, just run `.\run.ps1` from the project folder - no install required.
 - No changes to output behavior, file formats, or configuration are required.
 
 ## License and Attribution

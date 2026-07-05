@@ -1,8 +1,20 @@
-# Adds this MuxCls folder to the current user's PATH so `run.ps1` can be run by name in new terminals.
+# Registers a `MuxCls` command for the current user by adding a `MuxCls` function to the
+# user's PowerShell profile(s). Typing `MuxCls` in a PowerShell terminal then launches
+# run.ps1 directly - no .cmd shim and no PATH entry required.
+#
+# Note: `MuxCls` works in PowerShell (pwsh/powershell.exe) only, since profile functions
+# are a PowerShell-only mechanism. In cmd.exe, run `.\run.ps1` from this folder instead.
+#
+# This installer also removes any stale entry for this project folder from the user PATH
+# that older versions added (that entry never provided a working `MuxCls` command).
 
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-$MaxUserPathLength = 2047
+$Launcher = Join-Path -Path $ProjectDir -ChildPath "run.ps1"
+
+if (-not (Test-Path -LiteralPath $Launcher)) {
+    Write-Host "ERROR: Launcher was not found: $Launcher" -ForegroundColor Red
+    exit 1
+}
 
 function Send-EnvironmentChange {
     try {
@@ -36,37 +48,72 @@ public static class MuxClsNativeMethods {
             [ref]$result)
     }
     catch {
-        Write-Warning "Could not broadcast the PATH change. Open a new terminal before running run.ps1."
+        Write-Warning "Could not broadcast the PATH change. Open a new terminal to refresh PATH."
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($UserPath)) {
-    $PathParts = @()
-}
-else {
+# --- Step 1: remove any stale project-folder entry from the user PATH (older versions) ---
+
+$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if (-not [string]::IsNullOrWhiteSpace($UserPath)) {
     $PathParts = @($UserPath -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $Kept = @($PathParts | Where-Object { $_.TrimEnd('\') -ine $ProjectDir.TrimEnd('\') })
+    if ($Kept.Count -ne $PathParts.Count) {
+        [Environment]::SetEnvironmentVariable("Path", ($Kept -join ';'), "User")
+        Send-EnvironmentChange
+        Write-Host "Removed a stale MuxCls folder entry from the user PATH." -ForegroundColor Green
+    }
 }
 
-$AlreadyInstalled = @($PathParts | Where-Object { $_.TrimEnd('\') -ieq $ProjectDir.TrimEnd('\') })
+# --- Step 2: register a `MuxCls` function in the PowerShell profile(s) ---
 
-if (-not $AlreadyInstalled) {
-    $NewPath = (@($PathParts) + $ProjectDir) -join ';'
+$Documents = [Environment]::GetFolderPath("MyDocuments")
+$ProfilePaths = @(
+    (Join-Path $Documents "PowerShell\Microsoft.PowerShell_profile.ps1"),
+    (Join-Path $Documents "WindowsPowerShell\Microsoft.PowerShell_profile.ps1")
+)
 
-    if ($NewPath.Length -gt $MaxUserPathLength) {
-        Write-Host "ERROR: The user PATH would become too long to update safely." -ForegroundColor Red
-        Write-Host "Current length: $($UserPath.Length)" -ForegroundColor Yellow
-        Write-Host "New length: $($NewPath.Length)" -ForegroundColor Yellow
-        Write-Host "Remove unused entries from the user PATH, then run this installer again." -ForegroundColor Yellow
-        exit 1
+$Begin = "# BEGIN MuxCls command"
+$End = "# END MuxCls command"
+$EscapedLauncher = $Launcher.Replace("'", "''")
+$Block = @"
+$Begin
+function MuxCls {
+    `$launcher = '$EscapedLauncher'
+    `$pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue
+    if (`$pwsh) {
+        & `$pwsh.Source -NoLogo -NoProfile -ExecutionPolicy Bypass -File `$launcher @args
+    } else {
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File `$launcher @args
+    }
+}
+$End
+"@
+
+foreach ($ProfilePath in $ProfilePaths) {
+    $ProfileDir = Split-Path -Parent $ProfilePath
+    New-Item -ItemType Directory -Path $ProfileDir -Force | Out-Null
+
+    $Content = ""
+    if (Test-Path -LiteralPath $ProfilePath) {
+        $Content = Get-Content -LiteralPath $ProfilePath -Raw
     }
 
-    [Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
-    Send-EnvironmentChange
-    Write-Host "MuxCls was added to the user PATH." -ForegroundColor Green
-    Write-Host "Open a new terminal, then run: run.ps1" -ForegroundColor Cyan
-    Write-Host "To remove it later, delete this folder from your user PATH (Environment Variables)." -ForegroundColor Cyan
+    $Pattern = [regex]::Escape($Begin) + "(?s).*?" + [regex]::Escape($End)
+    if ($Content -match $Pattern) {
+        $Content = [regex]::Replace($Content, $Pattern, $Block)
+    }
+    elseif ([string]::IsNullOrWhiteSpace($Content)) {
+        $Content = $Block + [Environment]::NewLine
+    }
+    else {
+        $Content = $Content.TrimEnd() + [Environment]::NewLine + [Environment]::NewLine + $Block + [Environment]::NewLine
+    }
+
+    Set-Content -LiteralPath $ProfilePath -Value $Content -Encoding UTF8
+    Write-Host "Updated PowerShell profile: $ProfilePath" -ForegroundColor Green
 }
-else {
-    Write-Host "MuxCls is already in the user PATH." -ForegroundColor Green
-    Write-Host "To remove it, delete this folder from your user PATH (Environment Variables)." -ForegroundColor Cyan
-}
+
+Write-Host ""
+Write-Host "Open a new PowerShell terminal, then run: MuxCls" -ForegroundColor Cyan
+Write-Host "(The MuxCls function works in PowerShell only. In cmd.exe, run .\run.ps1 instead.)" -ForegroundColor DarkGray
