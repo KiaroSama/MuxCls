@@ -23,7 +23,7 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
 - Shows live elapsed progress while remuxing files or copying unchanged video files.
 - Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
-- Includes Windows launchers, an optional installer, and an uninstaller for the `MuxCls` command.
+- Includes a PowerShell launcher (`run.ps1`), an optional PATH installer, and an uninstaller.
 
 ## Requirements
 
@@ -49,19 +49,20 @@ ffmpeg -version
 ffprobe -version
 ```
 
-You can run MuxCls directly from the project folder, or install the folder into your user `PATH`:
+You can run MuxCls directly from the project folder, or add the folder to your user `PATH`:
 
 ```powershell
 .\Install-MuxClsCommand.ps1
 ```
 
-After installing, open a new terminal and run:
+After installing, open a new terminal. Because the project folder is on `PATH`, you can
+run the launcher by name from any directory:
 
-```cmd
-MuxCls
+```powershell
+run.ps1
 ```
 
-To remove the command from your user `PATH` later:
+To remove the folder from your user `PATH` later:
 
 ```powershell
 .\Uninstall-MuxClsCommand.ps1
@@ -73,12 +74,6 @@ Run from the project folder:
 
 ```powershell
 .\run.ps1
-```
-
-Or run the command shim:
-
-```cmd
-MuxCls.cmd
 ```
 
 You can also pass a file or folder path directly:
@@ -100,7 +95,7 @@ Numbered menus default to option `1`. The stream selection style menu defaults t
 
 Scan reports use ANSI colors for stream fields, centered section headers, and full-width separators when more than one file is scanned. Stream summaries and menu prompts also use ANSI colors when the terminal supports them. Multi-choice menus use a compact numbered layout with the default shown beside the default option.
 
-When advanced selection is used, MuxCls skips unnecessary questions if the scan finds only one audio language or no subtitle streams.
+When advanced selection is used, MuxCls skips the audio questions only when no scanned file has more than one audio track, and skips the subtitle questions when there are no subtitle streams. If any file has multiple audio tracks, the audio questions are asked even when every track shares the same language (for example, a main track plus a commentary track).
 
 The first input prompt supports `q`, `quit`, or `exit`. Later menus also support `0` for Back.
 
@@ -149,7 +144,6 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 - Existing output files are not overwritten by default; MuxCls uses safe output names and FFmpeg is run with no-overwrite mode.
 - If overwrite is enabled, FFmpeg may replace matching output files.
 - If your selected audio rule matches no audio stream in a file, that file is skipped and counted as `No audio match`.
-- `MuxCls.cmd` tries PowerShell 7 (`pwsh.exe`) first when available, then falls back to Windows PowerShell.
 - `Install-MuxClsCommand.ps1` modifies the current user's `PATH` environment variable by adding the project folder. It checks PATH length before writing and broadcasts an environment-change notification when possible.
 - `Uninstall-MuxClsCommand.ps1` removes the project folder from the current user's `PATH`.
 - Logs can contain local file paths, command lines, system information, warnings, and FFmpeg output. Do not publish local `Logs` files.
@@ -158,17 +152,39 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 
 | Path | Purpose |
 | --- | --- |
-| `MuxCls.py` | Main Python application. |
+| `MuxCls.py` | Thin entry point that runs the `muxcls` package. |
+| `muxcls/` | Application package, split by responsibility (see Project Structure below). |
 | `run.ps1` | PowerShell launcher that finds Python and runs `MuxCls.py`. |
-| `MuxCls.cmd` | Windows command shim that prefers PowerShell 7 and falls back to Windows PowerShell. |
 | `Install-MuxClsCommand.ps1` | Adds the project folder to the current user's `PATH`. |
 | `Uninstall-MuxClsCommand.ps1` | Removes the project folder from the current user's `PATH`. |
+| `archive/` | Preserved original single-file version from before the package split. |
 | `README.md` | Project documentation. |
 | `.gitignore` | Excludes logs, caches, local notes, temporary files, secrets, and generated output. |
 | `LICENSE` | MIT License. |
 | `ATTRIBUTION.md` | Standalone attribution notice for reuse and redistribution. |
 | `CHANGELOG.md` | Versioned project changelog. |
 | `GITHUB_RELEASE_NOTES.md` | Draft release notes for the next GitHub release. |
+
+## Project Structure
+
+The application logic lives in the `muxcls` package, split by responsibility. `MuxCls.py`
+is a thin entry point that imports and runs `muxcls.app.main`.
+
+| Module | Responsibility |
+| --- | --- |
+| `muxcls/constants.py` | Shared constants: video extensions, tool names, selection-mode codes. |
+| `muxcls/colors.py` | ANSI color palette and text coloring helpers. |
+| `muxcls/logsetup.py` | Logger setup and per-run log file creation. |
+| `muxcls/models.py` | Data models (`StreamInfo`, `MediaFile`, `SelectionRules`) and ffprobe parsing helpers. |
+| `muxcls/textutil.py` | Terminal/text formatting, language, and size helpers. |
+| `muxcls/prompts.py` | Interactive input prompts and menu navigation. |
+| `muxcls/media.py` | External tool execution (`ffprobe`/`ffmpeg`/`robocopy`) and file probing/scanning. |
+| `muxcls/muxlogic.py` | Stream selection logic, remux-needed decisions, and FFmpeg command building. |
+| `muxcls/output.py` | Output path resolution, naming, and filesystem helpers. |
+| `muxcls/reporting.py` | Scan reports, unique-stream summaries, and selection previews. |
+| `muxcls/selection.py` | Interactive rule configuration (advanced and exact modes). |
+| `muxcls/processing.py` | File processing, remuxing, copying, and verification. |
+| `muxcls/app.py` | Main menu, top-level flow, and program entry (`main`). |
 
 ## Logs
 
@@ -182,7 +198,7 @@ Logs include startup information, FFmpeg and robocopy command lines, command ret
 
 Logs are intended for local troubleshooting and are ignored by Git.
 
-Local-only folders such as `Logs/`, `.Comments/`, and `.claude/` are ignored and are not part of the public release.
+Local-only folders such as `Logs/`, `.Comments/`, `.kiro/`, and `.claude/` are ignored and are not part of the public release.
 
 ## Troubleshooting
 
@@ -201,13 +217,15 @@ Install Python 3 or add Python to `PATH`. The launcher first tries `py -3`, then
 
 ### PowerShell blocks the launcher
 
-Run from a trusted local project folder. The command shim uses:
+Run from a trusted local project folder. If script execution is blocked, start the
+launcher explicitly with an execution-policy bypass for the current process:
 
-```cmd
-pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0run.ps1"
+```powershell
+pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\run.ps1
 ```
 
-If PowerShell 7 is not installed, `MuxCls.cmd` falls back to `powershell.exe`.
+PowerShell 7 (`pwsh`) is preferred when available; Windows PowerShell (`powershell.exe`)
+also works.
 
 ### Output already exists
 

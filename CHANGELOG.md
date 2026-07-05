@@ -6,6 +6,15 @@
 
 - Fixed audio stream selection being skipped when a file had a single audio language but multiple audio tracks (for example, a main track plus a commentary track). Selection is now skipped only when no file has more than one audio track; multi-track files always prompt for audio selection.
 
+### Changed
+
+- Split the single-file `MuxCls.py` into the `muxcls/` package, organized by responsibility (constants, colors, logging, models, text/UI helpers, prompts, media, mux logic, output, reporting, selection, processing, and app). `MuxCls.py` is now a thin entry point. Behavior is unchanged.
+- Preserved the original single-file version under `archive/`.
+
+### Removed
+
+- Removed the `MuxCls.cmd` command shim. Use the `run.ps1` PowerShell launcher instead.
+
 ## [1.3.0] - 2026-06-03
 
 ### Added
