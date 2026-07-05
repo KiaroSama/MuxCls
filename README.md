@@ -23,7 +23,7 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
 - Shows live elapsed progress while remuxing files or copying unchanged video files.
 - Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
-- Includes a PowerShell launcher (`run.ps1`), an optional PATH installer, and an uninstaller.
+- Includes a PowerShell launcher (`run.ps1`) and an optional PATH installer.
 
 ## Requirements
 

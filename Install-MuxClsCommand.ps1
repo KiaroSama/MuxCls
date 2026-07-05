@@ -1,4 +1,4 @@
-# Adds this MuxCls folder to the current user's PATH so `MuxCls` works in new terminals.
+# Adds this MuxCls folder to the current user's PATH so `run.ps1` can be run by name in new terminals.
 
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -36,7 +36,7 @@ public static class MuxClsNativeMethods {
             [ref]$result)
     }
     catch {
-        Write-Warning "Could not broadcast the PATH change. Open a new terminal before running MuxCls."
+        Write-Warning "Could not broadcast the PATH change. Open a new terminal before running run.ps1."
     }
 }
 

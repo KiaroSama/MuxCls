@@ -1,38 +1,44 @@
-# MuxCls v1.3.0
+# MuxCls v1.3.1
 
-Version tag suggestion: `v1.3.0`
+Version tag suggestion: `v1.3.1`
 
-MuxCls v1.3.0 is a minor release focused on clearer long-copy progress and more complete processing logs for remuxed, copied, skipped, and failed files.
+MuxCls v1.3.1 fixes a stream-selection bug, splits the codebase into a maintainable
+package, and removes the `MuxCls.cmd` shim and the PATH uninstaller in favor of the
+PowerShell launcher and manual PATH removal.
 
-MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, audio, or subtitles.
-
-## Added
-
-- Added live elapsed progress while unchanged video files are copied with `robocopy`.
-- Added structured per-file `RESULT` log lines with action, status, input path, output path, detail, return code, and elapsed time.
-- Added final `SUMMARY_RESULT` log lines so the end of each run contains a compact per-file outcome summary.
-
-## Changed
-
-- Updated runtime version to `1.3.0`.
-- Unchanged-video copy operations now use `robocopy /J`.
+MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video,
+audio, or subtitles.
 
 ## Fixed
 
-- Fixed unchanged-video copy operations appearing idle during longer copy runs.
-- Improved run logs so remuxed, copied unchanged, skipped, no-audio-match, and failed file outcomes are easier to audit.
+- Fixed audio stream selection being skipped when a file had a single audio language but
+  multiple audio tracks (for example, a main track plus a commentary track). Selection is
+  now skipped only when no file has more than one audio track; multi-track files always
+  prompt for audio selection.
+
+## Changed
+
+- Updated runtime version to `1.3.1`.
+- Split the single-file `MuxCls.py` into the `muxcls/` package, organized by responsibility
+  (constants, colors, logging, models, text/UI helpers, prompts, media, mux logic, output,
+  reporting, selection, processing, and app). `MuxCls.py` is now a thin entry point that
+  imports and runs `muxcls.app.main`. Behavior is unchanged.
 
 ## Removed
 
-- No user-facing features were removed in this release.
+- Removed the `MuxCls.cmd` command shim. Use the `run.ps1` PowerShell launcher instead.
+- Removed `Uninstall-MuxClsCommand.ps1`. To remove MuxCls from `PATH`, delete the project
+  folder from the user `PATH` in Windows Environment Variables.
 
 ## Breaking Changes
 
-- No breaking changes.
+- The `MuxCls` command installed via `Install-MuxClsCommand.ps1` (which relied on
+  `MuxCls.cmd`) no longer resolves after installing. Run `run.ps1` by name instead once the
+  project folder is on `PATH`, or run `.\run.ps1` from the project folder directly.
 
 ## Requirements
 
-- Windows with Windows PowerShell or PowerShell 7 for the included launchers.
+- Windows with Windows PowerShell or PowerShell 7 for the included launcher.
 - Python 3 available as `py -3` or `python`.
 - FFmpeg installed and available in `PATH` as both `ffmpeg` and `ffprobe`.
 - Robocopy available in `PATH` for unchanged-video and non-video file copy operations. Robocopy is included with Windows.
@@ -51,8 +57,11 @@ MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encod
 
 ## Upgrade Notes
 
-- Existing users can pull the new version and keep using `.\run.ps1`, `MuxCls.cmd`, or the installed `MuxCls` command.
-- Review the local log after a run if you need to audit which files were remuxed, copied unchanged, skipped, or failed.
+- Existing users should switch from `MuxCls.cmd` to `.\run.ps1` (or `run.ps1` if the
+  project folder is on `PATH`).
+- If you previously ran `Install-MuxClsCommand.ps1`, no action is needed; the folder is
+  still on `PATH`, only the command name changed from `MuxCls` to `run.ps1`.
+- No changes to output behavior, file formats, or configuration are required.
 
 ## License and Attribution
 
