@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Install FFmpeg
+        run: choco install ffmpeg -y
+
+      - name: Compile check
+        run: python -m py_compile MuxCls.py muxcls/*.py
+
+      - name: Entry-point smoke test
+        shell: pwsh
+        run: |
+          "quit" | python MuxCls.py
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Entry point exited with code $LASTEXITCODE"
+            exit 1
+          }
+
+      - name: Run test suite
+        run: python -m pytest tests -v

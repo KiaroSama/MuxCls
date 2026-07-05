@@ -164,6 +164,10 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 | `ATTRIBUTION.md` | Standalone attribution notice for reuse and redistribution. |
 | `CHANGELOG.md` | Versioned project changelog. |
 | `GITHUB_RELEASE_NOTES.md` | Draft release notes for the next GitHub release. |
+| `tests/` | Pytest test suite (unit tests and real FFmpeg end-to-end tests). |
+| `pytest.ini` | Pytest configuration. |
+| `requirements-dev.txt` | Test-only dependencies (not required to run MuxCls). |
+| `.github/workflows/tests.yml` | GitHub Actions workflow that runs the test suite on push/PR. |
 
 ## Project Structure
 
@@ -199,6 +203,23 @@ Logs include startup information, FFmpeg and robocopy command lines, command ret
 Logs are intended for local troubleshooting and are ignored by Git.
 
 Local-only folders such as `Logs/`, `.Comments/`, `.kiro/`, and `.claude/` are ignored and are not part of the public release.
+
+## Testing
+
+MuxCls has a pytest test suite under `tests/`, covering stream-selection logic, output
+path resolution, and real end-to-end remuxing through actual FFmpeg-generated files.
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest tests -v
+```
+
+The end-to-end tests in `tests/test_processing_e2e.py` require `ffmpeg`/`ffprobe` in
+`PATH` and are skipped automatically if unavailable. The robocopy copy-unchanged test
+additionally requires Windows (`robocopy`) and is skipped on other platforms.
+
+A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the same suite on
+`windows-latest` for every push and pull request.
 
 ## Troubleshooting
 
