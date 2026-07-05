@@ -6,6 +6,7 @@
 
 - Added a pytest test suite (`tests/`) covering stream-selection logic, output path resolution, and real FFmpeg end-to-end remuxing/copy-unchanged scenarios.
 - Added a GitHub Actions workflow (`.github/workflows/tests.yml`) that runs the test suite on `windows-latest` for every push and pull request.
+- Added GitHub community files: `CONTRIBUTING.md`, `SECURITY.md`, issue templates, a pull request template, and Dependabot configuration.
 
 ## [1.3.1] - 2026-07-05
 
