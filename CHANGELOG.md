@@ -9,7 +9,7 @@
 ### Changed
 
 - Split the single-file `MuxCls.py` into the `muxcls/` package, organized by responsibility (constants, colors, logging, models, text/UI helpers, prompts, media, mux logic, output, reporting, selection, processing, and app). `MuxCls.py` is now a thin entry point. Behavior is unchanged.
-- Preserved the original single-file version under `archive/`.
+- Preserved the original single-file version under `archive/` at the time of the split (later removed; still recoverable from Git history, commit `7a2306d`).
 
 ### Removed
 
