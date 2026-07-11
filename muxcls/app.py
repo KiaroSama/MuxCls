@@ -1,4 +1,3 @@
-# Auto-generated module: part of the muxcls package split.
 from __future__ import annotations
 
 import sys
