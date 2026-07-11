@@ -19,6 +19,7 @@ Commands/**
 **/.windsurf/
 
 # Protected local-only files and directories
+/.ai/
 .ignoreme
 **/.ignoreme
 /secrets.md
