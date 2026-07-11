@@ -1,4 +1,3 @@
-# Auto-generated module: part of the muxcls package split.
 from __future__ import annotations
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi"}
