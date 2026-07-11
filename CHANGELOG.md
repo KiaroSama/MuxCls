@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Internal cleanup: removed unused color constants and stale generated-module headers, removed a redundant audio-mode branch, and deduplicated selection-rules construction in the interactive wizards. No behavior change.
+
 ### Added
 
 - Added a pytest test suite (`tests/`) covering stream-selection logic, output path resolution, and real FFmpeg end-to-end remuxing/copy-unchanged scenarios.
