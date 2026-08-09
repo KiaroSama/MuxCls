@@ -17,7 +17,7 @@
 
 - A failed or cancelled copy can no longer destroy the output it was replacing. The unchanged-video copy now stages into a private folder (Windows) or a temporary file (elsewhere) and renames it into place only after a complete copy; the previous destination is untouched if Robocopy fails, times out, or you press Ctrl+C.
 - A failed remux no longer leaves a partial file behind. FFmpeg writes to a sibling partial file that is renamed onto the real output only on success, so a failure, timeout or Ctrl+C leaves the output folder exactly as it was.
-- Overwrite now really replaces non-video files. Robocopy treats a destination with the same size and timestamp as identical and skips it even with `/IS /IT`, so non-video copying with overwrite enabled goes through the unconditional copy path instead.
+- Overwrite now really replaces non-video files. A destination matching the source on name, size and write time lands in Robocopy's "modified" class, which its documentation says is not copied without `/IM` — `/IS` and `/IT` do not cover it. Rather than depend on that classification, non-video copying with overwrite enabled goes through the unconditional copy path instead.
 - Every remux and copy now runs under one timeout policy instead of only FFmpeg supporting one and nobody passing it. Set `MUXCLS_OPERATION_TIMEOUT` (seconds, `0` disables) to change it; the default is 3 hours.
 
 ## [1.4.0] - 2026-08-09
