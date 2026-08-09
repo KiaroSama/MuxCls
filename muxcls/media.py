@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -10,6 +11,9 @@ from typing import List, NamedTuple, Optional, Sequence
 
 from .constants import (
     FFPROBE_BIN,
+    OPERATION_TIMEOUT_ENV_VAR,
+    OPERATION_TIMEOUT_SECONDS,
+    PARTIAL_MARKER,
     PROBE_TIMEOUT_SECONDS,
     PROCESS_KILL_GRACE_SECONDS,
     PROGRESS_POLL_SECONDS,
@@ -28,6 +32,20 @@ class ScanResult(NamedTuple):
 
     files: List[MediaFile]
     failures: List[Path]
+
+
+def operation_timeout_seconds() -> Optional[float]:
+    """One timeout policy for every remux and copy. Returns None only when the
+    user explicitly disables the bound."""
+    raw = os.environ.get(OPERATION_TIMEOUT_ENV_VAR, "").strip()
+    if not raw:
+        return float(OPERATION_TIMEOUT_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError:
+        LOGGER.warning("Ignoring invalid %s=%r", OPERATION_TIMEOUT_ENV_VAR, raw)
+        return float(OPERATION_TIMEOUT_SECONDS)
+    return None if value <= 0 else value
 
 
 def terminate_process(proc: subprocess.Popen, grace_seconds: float = PROCESS_KILL_GRACE_SECONDS) -> None:
@@ -170,7 +188,8 @@ def find_video_files(input_path: Path) -> List[Path]:
         return []
 
     for path in input_path.rglob("*"):
-        if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS:
+        # A leftover partial file (only possible after a hard kill) is not input.
+        if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS and PARTIAL_MARKER not in path.name:
             files.append(path)
 
     return sorted(files, key=lambda p: str(p).lower())

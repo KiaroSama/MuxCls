@@ -18,7 +18,7 @@ ROBOCOPY_BIN = "robocopy"
 IS_WINDOWS = os.name == "nt"
 
 
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.1"
 
 
 # Probing a single file is a metadata read, so it should never take minutes.
@@ -38,6 +38,21 @@ TIMEOUT_RETURNCODE = 124
 
 
 COPY_CHUNK_BYTES = 4 * 1024 * 1024
+
+
+# Marks a file or staging folder that MuxCls is still writing. Anything carrying it
+# is work in progress: never a finished output, and never valid input.
+PARTIAL_MARKER = ".muxcls-partial"
+
+
+# Wall-clock ceiling for one remux or one file copy. Stream copy is I/O bound, so
+# even a very large file finishes far inside this; the bound exists so a wedged
+# child cannot stall a whole run. Override with MUXCLS_OPERATION_TIMEOUT (seconds,
+# 0 or negative disables it).
+OPERATION_TIMEOUT_SECONDS = 3 * 60 * 60
+
+
+OPERATION_TIMEOUT_ENV_VAR = "MUXCLS_OPERATION_TIMEOUT"
 
 
 AUDIO_BY_LANGUAGE = "1"

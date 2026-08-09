@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.4.0**
+Current version: **1.4.1**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
@@ -230,10 +230,26 @@ Set the `MUXCLS_DEBUG` environment variable to `1` for a verbose log that also r
 command line and the captured output of successful commands:
 
 ```powershell
-$env:MUXCLS_DEBUG = "1"; .un.ps1
+$env:MUXCLS_DEBUG = "1"; .\run.ps1
 ```
 
 Logs are intended for local troubleshooting and are ignored by Git.
+
+## Timeouts and safe replacement
+
+Every remux and file copy runs under one wall-clock ceiling, so a wedged FFmpeg or copy cannot
+stall a run forever. The default is 3 hours. Set `MUXCLS_OPERATION_TIMEOUT` to a number of
+seconds to change it, or to `0` to disable the bound:
+
+```powershell
+$env:MUXCLS_OPERATION_TIMEOUT = "7200"; .\run.ps1
+```
+
+Output is written safely in every case. A remux goes to a sibling partial file, and an
+unchanged-video copy goes to a private staging folder on Windows or a temporary file
+elsewhere; either is renamed onto the real output only after the operation completes. A
+failure, a timeout, or `Ctrl+C` therefore leaves no partial file behind and never damages an
+output produced by an earlier run.
 
 Local-only folders such as `Logs/`, `.Comments/`, `.kiro/`, and `.claude/` are ignored and are not part of the public release.
 
