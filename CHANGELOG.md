@@ -4,7 +4,7 @@
 
 ### Added
 
-- `.test/Run-Demo.ps1`, a demo launcher. It builds a throwaway 12-episode series with FFmpeg — two audio languages with the default flag on the second track, two differently titled subtitles, and a non-video file per season — then runs MuxCls against it so you can watch what the tool prints. Four modes: a scripted run through all 12 files, a slower run on larger files where the per-file timer is readable, a keep-everything run that takes the copy-unchanged path, and an interactive run. Everything it reads and writes stays inside `.test`, and it offers to delete what it made.
+- `.test/Run-Demo.ps1`, a display-only UI demo. It walks through everything MuxCls prints — scan report, stream summary, menus, confirmation, per-file processing and the final summary — without reading, writing or converting a single file, and without invoking FFmpeg. The screens are drawn by the application's own rendering functions fed invented data, so the demo cannot drift from the real UI. Each file is given a configurable span (5 seconds by default) so the per-file `Elapsed` timer is actually readable next to the run `Total`; a real stream copy finishes in milliseconds, which is why that line normally flashes past. Three scenarios: a remux run, a copy-unchanged run, and a mixed run that also shows a scan failure, a file with no video stream and a no-audio-match skip.
 - `docs/MANUAL_QA.html`, a manual QA checklist built from the real strings and constants in `muxcls/`. One standalone file with a Persian/English switch that also flips direction; results persist in the browser.
 
 ### Fixed
