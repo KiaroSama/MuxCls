@@ -137,3 +137,7 @@ desktop.ini
 !/.env.sample
 !/.env.template
 !/.env.dist
+
+# Demo launcher artifacts: the launcher itself is tracked, what it generates is not.
+/.test/sample-media/
+/.test/demo-output/
