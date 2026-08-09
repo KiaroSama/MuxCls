@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Sequence
+from typing import Callable, List, NamedTuple, Optional, Sequence, Tuple
 
 from .constants import (
     FFPROBE_BIN,
@@ -22,7 +23,7 @@ from .constants import (
 )
 from .colors import err, info
 from .logsetup import LOGGER, command_to_text, log_command_output
-from .models import MediaFile, StreamInfo
+from .models import MediaFile, StreamInfo, parse_duration_seconds
 from .textutil import ProgressPrinter
 
 
@@ -46,6 +47,21 @@ def operation_timeout_seconds() -> Optional[float]:
         LOGGER.warning("Ignoring invalid %s=%r", OPERATION_TIMEOUT_ENV_VAR, raw)
         return float(OPERATION_TIMEOUT_SECONDS)
     return None if value <= 0 else value
+
+
+def read_new_output(handle, offset: int) -> Tuple[str, int]:
+    """Read only what the child appended since `offset`.
+
+    FFmpeg's -progress output grows for the whole run - an hour of remuxing is
+    megabytes - so each poll reads the new tail rather than the whole file.
+    The returned offset is the handle's own cookie, which is what text-mode
+    seek() expects.
+    """
+    try:
+        handle.seek(offset)
+        return handle.read(), handle.tell()
+    except (OSError, ValueError):
+        return "", offset
 
 
 def terminate_process(proc: subprocess.Popen, grace_seconds: float = PROCESS_KILL_GRACE_SECONDS) -> None:
@@ -104,10 +120,45 @@ def run_command(
     return proc
 
 
+FFMPEG_TIME_KEY = "out_time_us="
+ROBOCOPY_PERCENT = re.compile(r"(\d{1,3}(?:\.\d+)?)%")
+
+
+def read_ffmpeg_percent(text: str, duration_seconds: Optional[float]) -> Optional[float]:
+    """Position reported by `-progress pipe:1`, as a percentage of the duration.
+
+    FFmpeg appends key=value blocks, so the last out_time_us wins.
+    """
+    if not duration_seconds or duration_seconds <= 0:
+        return None
+    index = text.rfind(FFMPEG_TIME_KEY)
+    if index < 0:
+        return None
+    raw = text[index + len(FFMPEG_TIME_KEY):].split("\n", 1)[0].strip()
+    try:
+        seconds = int(raw) / 1_000_000
+    except ValueError:
+        return None
+    return max(0.0, min(100.0, seconds / duration_seconds * 100.0))
+
+
+def read_robocopy_percent(text: str) -> Optional[float]:
+    """Robocopy's own percentage. It rewrites the figure with carriage returns,
+    so the last match in what has been written so far is the current one."""
+    matches = ROBOCOPY_PERCENT.findall(text)
+    if not matches:
+        return None
+    try:
+        return max(0.0, min(100.0, float(matches[-1])))
+    except ValueError:
+        return None
+
+
 def run_with_progress(
     args: Sequence[str],
     total_started_at: Optional[float] = None,
     timeout: Optional[float] = None,
+    on_output: Optional[Callable[[str], None]] = None,
 ) -> subprocess.CompletedProcess:
     """Run a long command while showing its own elapsed timer.
 
@@ -135,9 +186,17 @@ def run_with_progress(
                 return subprocess.CompletedProcess(list(args), 1, "", str(exc))
 
             timed_out = False
+            capture_offset = 0
             try:
                 while proc.poll() is None:
                     progress.tick()
+                    if on_output is not None:
+                        # The child writes to a temp file rather than a pipe, so
+                        # reading it here cannot deadlock on a full pipe buffer
+                        # the way reading its stdout directly would.
+                        chunk, capture_offset = read_new_output(stdout_file, capture_offset)
+                        if chunk:
+                            on_output(chunk)
                     if timeout is not None and time.perf_counter() - progress.started_at > timeout:
                         timed_out = True
                         LOGGER.error("%s exceeded its %ss timeout; stopping it", label, timeout)
@@ -166,7 +225,10 @@ def run_with_progress(
             f"{stderr}\nCommand timeout after {timeout} seconds".strip(),
         )
 
-    log_command_output(label, returncode, stdout, stderr)
+    # When a caller consumes stdout as telemetry (FFmpeg's -progress stream,
+    # robocopy's percentage) it is thousands of key=value lines, and logging it
+    # on failure would bury the stderr message that actually says what broke.
+    log_command_output(label, returncode, "" if on_output else stdout, stderr)
     return subprocess.CompletedProcess(list(args), returncode, stdout, stderr)
 
 
@@ -219,7 +281,7 @@ def probe_file(path: Path) -> Optional[MediaFile]:
         "-v",
         "error",
         "-show_entries",
-        "stream=index,codec_type,codec_name,channels,duration,bit_rate:stream_tags:stream_disposition=default",
+        "stream=index,codec_type,codec_name,channels,duration,bit_rate:stream_tags:stream_disposition=default:format=duration",
         "-of",
         "json",
         str(path),
@@ -250,6 +312,8 @@ def probe_file(path: Path) -> Optional[MediaFile]:
         return None
 
     streams = [StreamInfo.from_ffprobe(s) for s in raw_streams if isinstance(s, dict)]
+    container = data.get("format") or {}
+    duration = parse_duration_seconds(container.get("duration")) if isinstance(container, dict) else None
     LOGGER.debug(
         "Probe OK: %s | video=%s audio=%s subtitle=%s attachment=%s",
         path,
@@ -258,7 +322,7 @@ def probe_file(path: Path) -> Optional[MediaFile]:
         sum(1 for s in streams if s.codec_type == "subtitle"),
         sum(1 for s in streams if s.codec_type == "attachment"),
     )
-    return MediaFile(path=path, streams=streams)
+    return MediaFile(path=path, streams=streams, duration_seconds=duration)
 
 
 def scan_files(files: List[Path]) -> ScanResult:

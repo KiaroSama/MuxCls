@@ -141,7 +141,10 @@ def build_ffmpeg_command(
     subtitles_keep = selected_subtitle_streams(media, rules)
 
     # -nostdin keeps FFmpeg from grabbing the console, so Ctrl+C reaches MuxCls.
-    cmd = [FFMPEG_BIN, "-hide_banner", "-nostdin"]
+    # -progress writes machine-readable position lines to stdout (out_time_us),
+    # which is the only way to know how far along a remux is; -nostats drops the
+    # human status line that would otherwise interleave with them.
+    cmd = [FFMPEG_BIN, "-hide_banner", "-nostdin", "-nostats", "-progress", "pipe:1"]
 
     if rules.overwrite:
         cmd.append("-y")

@@ -10,14 +10,14 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from .constants import COPY_CHUNK_BYTES, IS_WINDOWS, PARTIAL_MARKER, ROBOCOPY_BIN, VIDEO_EXTENSIONS
 from .colors import err
 from .logsetup import LOGGER
 from .models import SelectionRules
 from .textutil import ProgressPrinter
-from .media import operation_timeout_seconds, run_with_progress
+from .media import operation_timeout_seconds, read_robocopy_percent, run_with_progress
 from .output import destination_snapshot, extra_file_sources, partial_path, path_is_under, robocopy_success
 
 
@@ -36,6 +36,7 @@ def copy_file_with_progress(
     destination: Path,
     total_started_at: Optional[float] = None,
     timeout: Optional[float] = None,
+    on_progress: Optional[Callable[[int], None]] = None,
 ) -> None:
     """Chunked stdlib copy with a live elapsed line.
 
@@ -47,6 +48,7 @@ def copy_file_with_progress(
     progress = ProgressPrinter(total_started_at)
     partial = partial_path(destination)
     deadline = None if timeout is None else time.perf_counter() + timeout
+    written = 0
     try:
         with source.open("rb") as reader, partial.open("wb") as writer:
             while True:
@@ -54,6 +56,9 @@ def copy_file_with_progress(
                 if not chunk:
                     break
                 writer.write(chunk)
+                written += len(chunk)
+                if on_progress is not None:
+                    on_progress(written)
                 if deadline is not None and time.perf_counter() > deadline:
                     raise TimeoutError(f"copy of {source.name} exceeded its {timeout}s timeout")
                 progress.tick()
@@ -83,6 +88,8 @@ def copy_video_without_remux(
     overwrite: bool = False,
     total_started_at: Optional[float] = None,
     timeout: Optional[float] = None,
+    on_progress: Optional[Callable[[int], None]] = None,
+    on_percent: Optional[Callable[[float], None]] = None,
 ) -> int:
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -90,9 +97,10 @@ def copy_video_without_remux(
     # on the way, so a renamed output (single-file mode adds a rule suffix) has
     # to go through the stdlib copy even on Windows.
     if robocopy_available() and input_file.name == output_file.name:
-        return copy_video_with_robocopy(input_file, output_file, overwrite, total_started_at, timeout)
+        return copy_video_with_robocopy(input_file, output_file, overwrite,
+                                        total_started_at, timeout, on_percent)
 
-    copy_file_with_progress(input_file, output_file, total_started_at, timeout)
+    copy_file_with_progress(input_file, output_file, total_started_at, timeout, on_progress)
     if not output_file.exists():
         raise OSError("the copied file is missing after the copy finished")
     return 0
@@ -104,6 +112,7 @@ def copy_video_with_robocopy(
     overwrite: bool,
     total_started_at: Optional[float] = None,
     timeout: Optional[float] = None,
+    on_percent: Optional[Callable[[float], None]] = None,
 ) -> int:
     """Copy through a private staging folder, then rename into place.
 
@@ -134,10 +143,20 @@ def copy_video_with_robocopy(
             "/NDL",
             "/NJH",
             "/NJS",
-            "/NP",
             "/J",
         ]
-        proc = run_with_progress(args, total_started_at, timeout)
+
+        # /NP is deliberately absent: robocopy's own percentage is the only
+        # progress signal this path has, and it goes to a capture file rather
+        # than the console, so it adds no clutter.
+        def report(chunk: str) -> None:
+            if on_percent is None:
+                return
+            percent = read_robocopy_percent(chunk)
+            if percent is not None:
+                on_percent(percent)
+
+        proc = run_with_progress(args, total_started_at, timeout, on_output=report)
 
         staged = staging / input_file.name
         if not robocopy_success(proc.returncode):

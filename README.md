@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.4.2**
+Current version: **1.5.0**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
@@ -29,6 +29,7 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
 - Shows each file's own size change as soon as that file finishes, next to the run total at the end.
 - Shows a per-file elapsed timer that starts at zero for each file, alongside the elapsed time of the whole run.
+- Draws a live progress view on a terminal: an overall bar plus one row per file with its own bar, percentage, size, speed, ETA and elapsed time. Percentages are real - FFmpeg's reported position for a remux, bytes written for a copy.
 - Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
 - Includes a PowerShell launcher (`run.ps1`) and an optional installer that registers a `MuxCls` command.
 
@@ -210,6 +211,7 @@ is a thin entry point that imports and runs `muxcls.app.main`.
 | `muxcls/media.py` | External process execution (`ffprobe`/`ffmpeg`), timeouts, cancellation, and file probing/scanning. |
 | `muxcls/muxlogic.py` | Stream selection logic, remux-needed decisions, and FFmpeg command building. |
 | `muxcls/output.py` | Output path resolution, naming, and filesystem helpers. |
+| `muxcls/progressview.py` | The live progress block: bars, per-file rows, overall line, in-place repaint. |
 | `muxcls/reporting.py` | Scan reports, unique-stream summaries, and selection previews. |
 | `muxcls/selection.py` | Interactive rule configuration (advanced and exact modes). |
 | `muxcls/copying.py` | File copy backends: robocopy on Windows, Python standard library elsewhere. |
