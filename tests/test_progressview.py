@@ -7,12 +7,13 @@ block is taller than the terminal, and that colour codes never count as
 printable width.
 """
 import io
+import time
 
 import pytest
 
 from muxcls.progressview import (
     ACTIVE, DONE, FAILED, QUEUED, SKIPPED,
-    ProgressRow, ProgressView, truncate_visible, visible_length,
+    ProgressRow, ProgressView, bar, truncate_visible, visible_length,
 )
 from muxcls.colors import C, color
 
@@ -45,6 +46,41 @@ def test_truncate_visible_cuts_by_printable_width_not_bytes():
 def test_truncate_visible_leaves_a_short_line_alone():
     line = color("short", C.SKY)
     assert truncate_visible(line, 40) == line
+
+
+def test_a_finished_row_keeps_the_time_it_took():
+    """finish() froze the elapsed time after flipping the state, and
+    live_elapsed() only measures while a row is ACTIVE - so every finished row
+    reported 00:00:00 no matter how long it had run."""
+    row = _rows(1)[0]
+    view = ProgressView([row], enabled=False)
+    view.start(0)
+    row.started_at = time.perf_counter() - 12.0     # pretend it ran for 12s
+    view.finish(0, DONE)
+
+    assert row.elapsed == pytest.approx(12.0, abs=0.5)
+    assert "00:00:12" in "\n".join(view.compose(99, 24))
+
+
+def test_a_finished_row_shows_no_extra_column_after_its_state():
+    # A leftover detail here reads as the speed column that was removed.
+    row = _rows(1)[0]
+    view = ProgressView([row], enabled=False)
+    view.start(0)
+    view.finish(0, DONE, "-65.12 MB")
+    line = view.compose(99, 24)[-1]
+
+    assert "Done" in line
+    assert "-65.12 MB" not in line
+
+
+def test_the_bar_uses_the_shared_progress_palette():
+    # EVdlc draws the unfilled track in crimson, not grey; that contrast is
+    # what makes the filled portion readable.
+    drawn = bar(0.5, 10, ACTIVE)
+    assert C.BAR_FILL in drawn
+    assert C.BAR_TRACK in drawn
+    assert C.GRAY not in drawn
 
 
 def test_no_row_shows_a_transfer_speed():

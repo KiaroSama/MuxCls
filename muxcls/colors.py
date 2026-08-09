@@ -68,6 +68,21 @@ class C:
     SUMMARY_EXTRA_FAILED = "\033[38;2;255;95;120m"
     SUMMARY_SIZE_DIFF = "\033[38;2;0;170;125m"
     SUMMARY_ELAPSED = "\033[38;2;205;122;42m"
+    # Progress-view palette, taken value-for-value from EVdlc's shared console
+    # palette so the block reads the same in both tools. The unfilled track is
+    # deliberately crimson rather than grey - that contrast is what makes the
+    # filled portion readable at a glance.
+    BAR_FILL = "\033[38;2;0;191;185m"
+    BAR_TRACK = "\033[38;2;214;0;68m"
+    BAR_FAIL = "\033[38;2;255;79;109m"
+    PROGRESS_PERCENT = "\033[38;2;48;209;88m"
+    PROGRESS_SIZE = "\033[38;2;142;238;255m"
+    PROGRESS_DONE_WORD = "\033[38;2;57;255;106m"
+    PROGRESS_ETA_LABEL = "\033[38;2;255;194;71m"
+    PROGRESS_ETA_VALUE = "\033[38;2;255;154;47m"
+    PROGRESS_ELAPSED = "\033[38;2;217;145;69m"
+    PROGRESS_MUTED = "\033[38;2;138;143;163m"
+    PROGRESS_OVERALL = "\033[38;2;66;232;255m"
 
 
 LANGUAGE_COLORS = (
