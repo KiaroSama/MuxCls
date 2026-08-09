@@ -1,6 +1,6 @@
 # Contributing to MuxCls
 
-Thanks for your interest in improving MuxCls. This is a Windows-focused, Python 3 FFmpeg
+Thanks for your interest in improving MuxCls. This is a cross-platform, Python 3 FFmpeg
 helper that remuxes media with stream copy (`ffmpeg -c copy`) - it never re-encodes.
 
 ## Getting started
@@ -40,12 +40,12 @@ python -m pytest tests -v
 ```
 
 - Unit tests are fast and require no external tools.
-- End-to-end tests in `tests/test_processing_e2e.py` require `ffmpeg`/`ffprobe` (and
-  Windows `robocopy` for the copy-unchanged test); they skip automatically if unavailable.
+- End-to-end tests in `tests/test_processing_e2e.py` require `ffmpeg`/`ffprobe`; they skip
+  automatically if unavailable. The robocopy overwrite tests additionally require Windows.
 - Add or update tests for any behavior you change or fix.
 
-CI (`.github/workflows/tests.yml`) runs the same suite on `windows-latest` for every push
-and pull request.
+CI (`.github/workflows/tests.yml`) runs the same suite on `windows-latest` and
+`ubuntu-latest` for every push and pull request.
 
 ## What not to commit
 
