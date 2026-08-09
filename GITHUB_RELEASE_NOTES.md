@@ -69,7 +69,7 @@ audio, or subtitles.
   for failures, and per-file paths relative to the run roots.
 - File copy backends moved into `muxcls/copying.py`, separating run orchestration from
   platform-specific copying.
-- The test suite grew to 96 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
+- The test suite grew to 99 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
 
 ## Requirements
 
