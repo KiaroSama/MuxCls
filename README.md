@@ -29,7 +29,7 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
 - Shows each file's own size change as soon as that file finishes, next to the run total at the end.
 - Shows a per-file elapsed timer that starts at zero for each file, alongside the elapsed time of the whole run.
-- Draws a live progress view on a terminal: an overall bar plus one row per file with its own bar, percentage, size, speed, ETA and elapsed time. Percentages are real - FFmpeg's reported position for a remux, bytes written for a copy.
+- Draws a live progress view on a terminal: an overall bar plus one row per file with its own bar, percentage, how much of it is done out of its total, an ETA and its elapsed time. Percentages are real - FFmpeg's reported position for a remux, bytes written for a copy.
 - Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
 - Includes a PowerShell launcher (`run.ps1`) and an optional installer that registers a `MuxCls` command.
 

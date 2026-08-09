@@ -18,9 +18,8 @@ import re
 import shutil
 import sys
 import time
-from collections import deque
-from dataclasses import dataclass, field
-from typing import Deque, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 from .colors import C, color
 from .textutil import format_elapsed_time, format_stream_size
@@ -30,10 +29,6 @@ ACTIVE = "active"
 DONE = "done"
 FAILED = "failed"
 SKIPPED = "skipped"
-
-# How long a window the speed readout averages over. Short enough to react,
-# long enough that one slow chunk does not make the ETA jump minutes.
-SPEED_WINDOW_SECONDS = 3.0
 
 MAX_FRAMES_PER_SECOND = 8.0
 
@@ -94,12 +89,6 @@ def terminal_size() -> Tuple[int, int]:
         return 99, 24
 
 
-def format_speed(speed: Optional[float]) -> str:
-    if not speed or speed <= 0:
-        return "--"
-    return f"{format_stream_size(int(speed))}/s"
-
-
 def format_eta(seconds: Optional[float]) -> str:
     # Anything past a day is not a countdown any more, it is a guess.
     if seconds is None or seconds < 0 or seconds > 86400:
@@ -109,29 +98,6 @@ def format_eta(seconds: Optional[float]) -> str:
     if hours:
         return f"{hours:d}:{minutes:02d}:{secs:02d}"
     return f"{minutes:02d}:{secs:02d}"
-
-
-class SpeedMeter:
-    """Bytes per second over a short trailing window."""
-
-    def __init__(self, window: float = SPEED_WINDOW_SECONDS) -> None:
-        self._samples: Deque[Tuple[float, int]] = deque()
-        self._window = window
-
-    def update(self, completed: int, now: Optional[float] = None) -> None:
-        now = time.perf_counter() if now is None else now
-        self._samples.append((now, completed))
-        while len(self._samples) > 2 and now - self._samples[0][0] > self._window:
-            self._samples.popleft()
-
-    def current(self) -> Optional[float]:
-        if len(self._samples) < 2:
-            return None
-        (first_at, first_bytes), (last_at, last_bytes) = self._samples[0], self._samples[-1]
-        span = last_at - first_at
-        if span <= 0 or last_bytes < first_bytes:
-            return None
-        return (last_bytes - first_bytes) / span
 
 
 @dataclass
@@ -146,7 +112,6 @@ class ProgressRow:
     detail: str = ""
     started_at: Optional[float] = None
     elapsed: float = 0.0
-    meter: SpeedMeter = field(default_factory=SpeedMeter)
 
     @property
     def ratio(self) -> Optional[float]:
@@ -164,6 +129,20 @@ class ProgressRow:
         return self.elapsed
 
 
+def dash() -> str:
+    """The placeholder a queued row shows where a live one shows a number. An
+    em-dash is not encodable in every console code page, and one unencodable
+    character turns the whole row into replacement glyphs."""
+    return "—" if supports_unicode() else "-"
+
+
+def bar_width_for(width: int) -> int:
+    """Leave room for percent, size pair, state/ETA and Elapsed. EVdlc reserves
+    80 columns for the same layout; this one also carries a detail column, so it
+    keeps a little more back and caps the bar narrower."""
+    return max(14, min(28, width - 78))
+
+
 def bar(ratio: Optional[float], width: int, state: str) -> str:
     full_char, empty_char = ("━", "─") if supports_unicode() else ("=", "-")
     width = max(1, width)
@@ -176,55 +155,63 @@ def bar(ratio: Optional[float], width: int, state: str) -> str:
     return color(full_char * filled, fill_color) + color(empty_char * (width - filled), C.GRAY)
 
 
+def size_pair(completed: Optional[int], total: Optional[int]) -> str:
+    """`done / total`, the shape EVdlc's rows use. Showing only the total leaves
+    the reader no idea how much of it has actually happened."""
+    done_text = format_stream_size(completed) if completed else "0 B"
+    total_text = format_stream_size(total) if total else "?"
+    return f"{done_text} / {total_text}"
+
+
+def eta_seconds(ratio: Optional[float], started_at: Optional[float]) -> Optional[float]:
+    """Project the remaining time from how long this row took to reach `ratio`.
+
+    There is no byte rate to divide by: a remux reports a position on the
+    timeline, not bytes, so the same estimator has to serve both paths.
+    """
+    if ratio is None or not (0 < ratio < 1) or started_at is None:
+        return None
+    spent = time.perf_counter() - started_at
+    return spent / ratio - spent if spent > 0 else None
+
+
 def stats_line(row: ProgressRow, width: int, show_elapsed: bool = True) -> str:
-    bar_width = max(12, min(30, width - 62))
+    """`bar percent | done / total | state-or-ETA | Elapsed hh:mm:ss`."""
+    bar_width = bar_width_for(width)
     ratio = row.ratio
 
     if row.state == QUEUED:
         return (
-            f"  {bar(None, bar_width, QUEUED)} "
-            f"{color('  Queued', C.GRAY)} | "
-            f"{color(format_stream_size(row.total) if row.total else '-', C.GRAY)}"
+            f"{bar(None, bar_width, QUEUED)} "
+            f"{color('Queued', C.GRAY)} | "
+            f"{color(format_stream_size(row.total) if row.total else '?', C.GRAY)} | "
+            f"{color(dash(), C.GRAY)} | "
+            f"{color('ETA', C.AMBER)} {color(dash(), C.GRAY)}"
         )
+
+    percent_text = f"{ratio * 100:5.1f}%" if ratio is not None else " --.-%"
+    line = (
+        f"{bar(ratio, bar_width, row.state)} "
+        f"{color(percent_text, C.BOLD + C.PROCESS_DONE)} | "
+        f"{color(size_pair(row.completed or (row.total if row.state == DONE else 0), row.total), C.SKY)}"
+    )
 
     if row.state in (DONE, FAILED, SKIPPED):
-        label = {DONE: ("Done", C.PROCESS_DONE),
-                 FAILED: ("Failed", C.SUMMARY_FAILED),
-                 SKIPPED: ("Skipped", C.AMBER)}[row.state]
-        line = (
-            f"  {bar(1.0 if row.state == DONE else ratio, bar_width, row.state)} "
-            f"{color(label[0].rjust(8), label[1])} | "
-            f"{color(format_stream_size(row.total) if row.total else '-', C.SKY)}"
-        )
+        # The finished word takes the column a live row uses for its countdown;
+        # "ETA Done" would be a label with nothing behind it.
+        word, tint = {DONE: ("Done", C.PROCESS_DONE),
+                      FAILED: ("Failed", C.SUMMARY_FAILED),
+                      SKIPPED: ("Skipped", C.AMBER)}[row.state]
+        line += f" | {color(word, tint)}"
         if row.detail:
             line += f" | {color(row.detail, C.GRAY)}"
-        if show_elapsed:
-            line += f" | {color(format_elapsed_time(row.elapsed), C.SUMMARY_ELAPSED)}"
-        return line
+    else:
+        remaining = eta_seconds(ratio, row.started_at)
+        line += f" | {color('ETA', C.AMBER)} {color(format_eta(remaining), C.LAVENDER)}"
 
-    percent_text = f"{ratio * 100:6.1f}%" if ratio is not None else "  --.-%"
-    speed = row.meter.current()
-    eta = None
-    if ratio is not None and speed and row.total:
-        remaining = max(0, row.total - row.completed)
-        eta = remaining / speed if speed > 0 else None
-    elif ratio is not None and 0 < ratio < 1 and row.started_at is not None:
-        # No byte meter (FFmpeg reports timeline position, not bytes), so the
-        # countdown comes from how long this file has taken to reach `ratio`.
-        spent = time.perf_counter() - row.started_at
-        eta = spent / ratio - spent if spent > 0 else None
-
-    line = (
-        f"  {bar(ratio, bar_width, ACTIVE)} "
-        f"{color(percent_text, C.BOLD + C.WHITE)} | "
-        f"{color(format_stream_size(row.total) if row.total else '-', C.SKY)}"
-    )
-    if speed:
-        line += f" | {color(format_speed(speed), C.MINT)}"
-    if eta is not None:
-        line += f" | {color('ETA ' + format_eta(eta), C.LAVENDER)}"
     if show_elapsed:
-        line += f" | {color(format_elapsed_time(row.live_elapsed()), C.SUMMARY_ELAPSED)}"
+        line += (f" | {color('Elapsed', C.SUMMARY_ELAPSED)} "
+                 f"{color(format_elapsed_time(row.live_elapsed()), C.SUMMARY_ELAPSED)}")
     return line
 
 
@@ -249,7 +236,6 @@ class ProgressView:
         row = self.rows[index]
         row.state = ACTIVE
         row.started_at = time.perf_counter()
-        row.meter = SpeedMeter()
         if status:
             self.status = status
         self.render(force=True)
@@ -261,7 +247,6 @@ class ProgressView:
             row.percent = percent
         if completed is not None:
             row.completed = completed
-            row.meter.update(completed)
         self.render()
 
     def finish(self, index: int, state: str, detail: str = "") -> None:
@@ -287,17 +272,26 @@ class ProgressView:
         if active is not None and active.ratio is not None and total_files:
             ratio += active.ratio / total_files
 
-        bar_width = max(12, min(30, width - 62))
+        total_bytes = sum(row.total or 0 for row in self.rows)
+        done_bytes = sum(int((row.ratio or 0.0) * (row.total or 0)) for row in self.rows)
+        bar_width = bar_width_for(width)
         elapsed = time.perf_counter() - self._started_at
+        remaining = eta_seconds(ratio if 0 < ratio < 1 else None, self._started_at)
+
         return (
-            f"{color('Overall ', C.BOLD + C.LAVENDER)}{bar(ratio, bar_width, ACTIVE)} "
-            f"{color(f'{ratio * 100:6.1f}%', C.BOLD + C.WHITE)} | "
+            f"{bar(ratio, bar_width, ACTIVE)} "
+            f"{color(f'{ratio * 100:5.1f}%', C.BOLD + C.PROCESS_DONE)} | "
+            f"{color(size_pair(done_bytes, total_bytes), C.SKY)} | "
             f"{color(f'{finished}/{total_files} files', C.GOLD)} | "
+            f"{color('ETA', C.AMBER)} {color(format_eta(remaining), C.LAVENDER)} | "
+            f"{color('Elapsed', C.SUMMARY_ELAPSED)} "
             f"{color(format_elapsed_time(elapsed), C.SUMMARY_ELAPSED)}"
         )
 
     def compose(self, width: int, height: int) -> List[str]:
-        lines = [self.overall_line(width), ""]
+        # Overall is its own labelled group, exactly like a file group, so the
+        # two read as the same kind of thing.
+        lines = [color("Overall", C.BOLD + C.LAVENDER), self.overall_line(width), ""]
 
         groups: List[List[str]] = []
         for index, row in enumerate(self.rows, start=1):

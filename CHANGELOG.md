@@ -4,7 +4,7 @@
 
 ### Added
 
-- A live progress view. On a terminal, processing now draws a block that repaints in place: an `Overall` bar with a files-done count and the run's elapsed time, then one row per file showing a bar, percentage, size, speed, ETA and that file's own elapsed time, with the rows still waiting marked `Queued` and the finished ones `Done`, `Failed` or `Skipped`. When the list is taller than the terminal it follows the file being worked on and says how many rows are hidden above and below. The layout is adapted from EVdlc's progress view.
+- A live progress view. On a terminal, processing now draws a block that repaints in place: an `Overall` bar with a files-done count and the run's elapsed time, then one row per file showing a bar, percentage, how much of it is done out of its total, an ETA and that file's own elapsed time, with the rows still waiting marked `Queued` and the finished ones `Done`, `Failed` or `Skipped`. When the list is taller than the terminal it follows the file being worked on and says how many rows are hidden above and below. The layout is adapted from EVdlc's progress view.
 - Real percentages rather than a spinner. A remux reports FFmpeg's own position (`-progress`, measured against the container duration ffprobe reports), the standard-library copy reports the bytes it has written, and the Robocopy copy reports Robocopy's own percentage.
 
 ### Changed
