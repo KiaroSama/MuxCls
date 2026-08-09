@@ -2,6 +2,11 @@
 
 ## [1.4.2] - 2026-08-09
 
+### Added
+
+- `.test/Run-Demo.ps1`, a demo launcher. It builds a throwaway 12-episode series with FFmpeg — two audio languages with the default flag on the second track, two differently titled subtitles, and a non-video file per season — then runs MuxCls against it so you can watch what the tool prints. Four modes: a scripted run through all 12 files, a slower run on larger files where the per-file timer is readable, a keep-everything run that takes the copy-unchanged path, and an interactive run. Everything it reads and writes stays inside `.test`, and it offers to delete what it made.
+- `docs/MANUAL_QA.html`, a manual QA checklist built from the real strings and constants in `muxcls/`. One standalone file with a Persian/English switch that also flips direction; results persist in the browser.
+
 ### Fixed
 
 - Non-video file copying is now bounded and cancellable like everything else. The standard-library backend receives the operation timeout, and the Robocopy backend runs through the same cancellable runner as the rest instead of an unbounded call, so a timeout or `Ctrl+C` stops and reaps it.
