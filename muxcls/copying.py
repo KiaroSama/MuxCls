@@ -107,11 +107,16 @@ def copy_video_with_robocopy(
 ) -> int:
     """Copy through a private staging folder, then rename into place.
 
-    Robocopy cannot rename while copying and decides for itself whether a
-    destination is "the same" (it skips one that matches on size and timestamp
-    even with /IS /IT - measured). Staging sidesteps both: robocopy always writes
-    into an empty folder, and an existing destination is only replaced once a
-    complete copy exists. A failure or a Ctrl+C leaves the old file untouched.
+    Robocopy cannot rename while copying, and it decides for itself whether a
+    destination needs copying at all. A destination with the same name, size and
+    write time but a different NTFS change time lands in robocopy's "modified"
+    class, which its own documentation says is not copied without /IM - /IS and
+    /IT do not cover it (measured; see .ai/LESSON.md).
+
+    Staging sidesteps both problems without depending on that classification at
+    all: robocopy always writes into an empty folder, so there is nothing to
+    skip, and the destination is replaced only once a complete copy exists. A
+    failure or a Ctrl+C leaves the old file untouched.
     """
     staging = output_file.parent / f"{PARTIAL_MARKER}-{output_file.stem}"
     try:
@@ -158,10 +163,11 @@ def copy_extra_files(input_root: Path, output_root: Path, rules: SelectionRules)
     if not sources:
         return 0, 0, 0
 
-    # Robocopy only ever copies what it judges to be different, and it judges a
-    # destination with the same size and timestamp to be identical even with
-    # /IS /IT (measured). Overwrite must be unconditional, so it goes through the
-    # stdlib copy, which replaces every destination through a temporary file.
+    # Robocopy only copies what its own classification says is different, and a
+    # destination matching on name/size/write-time is not copied without /IM.
+    # Overwrite has to be unconditional rather than classification-dependent, so
+    # it goes through the stdlib copy, which replaces every destination through a
+    # temporary file.
     if robocopy_available() and not rules.overwrite:
         return copy_extra_files_with_robocopy(sources, input_root, output_root, rules)
     return copy_extra_files_with_stdlib(sources, input_root, output_root, rules)
