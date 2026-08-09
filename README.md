@@ -186,6 +186,7 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 | `SECURITY.md` | Security policy and vulnerability reporting. |
 | `CHANGELOG.md` | Versioned project changelog. |
 | `GITHUB_RELEASE_NOTES.md` | Draft release notes for the next GitHub release. |
+| `docs/MANUAL_QA.html` | Manual QA checklist. Open it by double-click; the language button switches between Persian and English, and results are kept in the browser. |
 | `tests/` | Pytest test suite (unit tests and real FFmpeg end-to-end tests). |
 | `pytest.ini` | Pytest configuration. |
 | `requirements-dev.txt` | Test-only dependencies (not required to run MuxCls). |
