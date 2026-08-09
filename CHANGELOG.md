@@ -5,11 +5,12 @@
 ### Added
 
 - `.test/Run-Demo.ps1`, a display-only UI demo. It walks through everything MuxCls prints — scan report, stream summary, menus, confirmation, per-file processing and the final summary — without reading, writing or converting a single file, and without invoking FFmpeg. The screens are drawn by the application's own rendering functions fed invented data, so the demo cannot drift from the real UI. Each file is given a configurable span (5 seconds by default) so the per-file `Elapsed` timer is actually readable next to the run `Total`; a real stream copy finishes in milliseconds, which is why that line normally flashes past. Three scenarios: a remux run, a copy-unchanged run, and a mixed run that also shows a scan failure, a file with no video stream and a no-audio-match skip.
-- A regression guard for the demo (`tests/test_demo_ui.py`). The demo draws with the application's own rendering functions, so renaming one would break it silently; the guard runs the whole walkthrough with no waiting and fails if a screen stops rendering or the demo writes a file.
+- A regression guard for the demo (`tests/test_demo_ui.py`). The demo draws with the application's own rendering functions, so renaming one would break it silently; the guard runs the whole walkthrough with no waiting, drives the launcher's real menu, and fails if a screen stops rendering, the launcher swallows the output, or the demo writes a file.
 - `docs/MANUAL_QA.html`, a manual QA checklist built from the real strings and constants in `muxcls/`. One standalone file with a Persian/English switch that also flips direction; results persist in the browser.
 
 ### Fixed
 
+- The demo launcher printed nothing when a run was chosen. Assigning the call that ran the demo made the child's whole output part of the PowerShell function's return value, so the screen stayed blank and the per-file timer stopped drawing; and filtering the argument array dropped `--seconds 0`, because PowerShell treats `0` as falsy.
 - Non-video file copying is now bounded and cancellable like everything else. The standard-library backend receives the operation timeout, and the Robocopy backend runs through the same cancellable runner as the rest instead of an unbounded call, so a timeout or `Ctrl+C` stops and reaps it.
 - A failed or cancelled non-video copy no longer leaves a truncated file in the output. Destinations this run created but did not finish writing are removed, and reported as failed rather than copied; a destination that already existed is never touched.
 
