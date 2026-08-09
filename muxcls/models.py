@@ -17,16 +17,26 @@ class StreamInfo:
 
     @classmethod
     def from_ffprobe(cls, raw: Dict[str, Any]) -> "StreamInfo":
+        """Build a stream from one ffprobe record.
+
+        Every value here comes from a file somebody else produced, so nothing
+        is parsed with a bare `int()`: ffprobe writes `N/A` wherever a
+        container carries no value, and one such field would otherwise raise
+        part-way through a scan and take the whole run down with it.
+        `parse_int_value` returns None instead, which the display and command
+        layers already handle.
+        """
         tags = raw.get("tags") or {}
         disposition = raw.get("disposition") or {}
+        index = parse_int_value(raw.get("index"))
         return cls(
-            index=int(raw.get("index", -1)),
+            index=index if index is not None else -1,
             codec_type=str(raw.get("codec_type", "")),
             codec_name=str(raw.get("codec_name", "")),
             language=str(tags.get("language", "") or "und"),
             title=str(tags.get("title", "") or ""),
-            channels=raw.get("channels"),
-            disposition_default=int(disposition.get("default", 0) or 0),
+            channels=parse_int_value(raw.get("channels")),
+            disposition_default=parse_int_value(disposition.get("default")) or 0,
             size_bytes=stream_size_bytes_from_ffprobe(raw, tags),
         )
 

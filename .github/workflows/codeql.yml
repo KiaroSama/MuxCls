@@ -1,0 +1,46 @@
+name: CodeQL
+
+# MuxCls builds argument lists for ffmpeg, ffprobe and robocopy out of paths and
+# metadata that come from files it did not create. CodeQL's Python queries cover
+# exactly that shape - data reaching a process or filesystem API - which is the
+# class of defect that produced the leading-dash path bug in 1.6.0.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly, so a newly published query still reaches this repository between
+    # commits.
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python
+          queries: security-and-quality
+
+      # No build step: this is a pure-Python project with no compiled artifacts
+      # and no third-party runtime dependencies to install.
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4

@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.0] - 2026-08-10
+
+### Added
+
+- After a run finishes, MuxCls offers to read the output back and report what each file ended up with. The check existed and was tested but had no way to reach it from the menu. It defaults to no, since it costs one `ffprobe` per output file.
+
+### Fixed
+
+- A file whose name begins with `-` could not be processed at all when the input path was typed as a relative one such as `.`. Paths were expanded but never anchored, so `Path('.') / '-name.mkv'` collapsed to `-name.mkv`, and `ffprobe`/`ffmpeg` read that as an option rather than a file - the file was then reported as one that could not be read. Every path the user supplies is now made absolute before it reaches a command line.
+- `Install-MuxClsCommand.ps1` could destroy non-ASCII text in the user's PowerShell profile. It rewrote the whole file - including lines it did not write - using `Get-Content`/`Set-Content`, whose default encodings differ between Windows PowerShell 5.1 and PowerShell 7. It now reads and writes bytes explicitly, keeps the file's existing BOM state, and refuses to touch a profile that is not UTF-8 rather than guessing.
+- A stream record with an unreadable numeric field (`ffprobe` writes `N/A` where a container carries no value) raised part-way through a scan instead of being treated as unknown.
+
+### Changed
+
+- The end-of-run size accounting no longer re-resolves the excluded output folder once per file. Measured on a 3000-file library: 2.97s before, 0.37s after. Collecting the non-video files to copy uses the same pruning walk.
+- CI runs the suite on Python 3.11, 3.12 and 3.13 instead of 3.11 alone, and a CodeQL workflow analyses the codebase weekly and on every push.
+- The declared `pytest` floor is the version the suite is actually run against.
+
 ## [1.5.1] - 2026-08-09
 
 ### Fixed

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -168,8 +169,47 @@ def path_is_under(path: Path, root: Path) -> bool:
         return False
 
 
+def resolved_roots(paths: Optional[Sequence[Path]]) -> List[Path]:
+    """Resolve each root once, for walks that then compare against them.
+
+    Resolving inside the per-file loop instead is what made the end-of-run size
+    accounting cost several seconds on a large library: `path_is_under` resolves
+    *both* sides on every call, so the excluded root was re-resolved once per
+    file in the tree.
+    """
+    roots: List[Path] = []
+    for path in paths or []:
+        try:
+            roots.append(path.resolve())
+        except OSError:
+            roots.append(path.absolute())
+    return roots
+
+
+def walk_files(root: Path, skip_roots: Sequence[Path]) -> Iterable[Path]:
+    """Every file under `root`, never descending into one of `skip_roots`.
+
+    Pruning at the directory boundary is the point: an excluded subtree is
+    stepped over once rather than tested once per file inside it.
+    """
+    skip = set(skip_roots)
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        if skip:
+            kept = []
+            for name in dirnames:
+                try:
+                    resolved = (here / name).resolve()
+                except OSError:
+                    resolved = (here / name).absolute()
+                if resolved not in skip:
+                    kept.append(name)
+            dirnames[:] = kept
+        for name in filenames:
+            yield here / name
+
+
 def path_total_size(path: Path, exclude_paths: Optional[Sequence[Path]] = None) -> int:
-    excludes = list(exclude_paths or [])
     total = 0
 
     if not path.exists():
@@ -182,11 +222,7 @@ def path_total_size(path: Path, exclude_paths: Optional[Sequence[Path]] = None) 
             LOGGER.warning("Could not read file size for %s: %s", path, exc)
             return 0
 
-    for child in path.rglob("*"):
-        if not child.is_file():
-            continue
-        if any(path_is_under(child, excluded) for excluded in excludes):
-            continue
+    for child in walk_files(path, resolved_roots(exclude_paths)):
         try:
             total += child.stat().st_size
         except OSError as exc:
@@ -196,16 +232,14 @@ def path_total_size(path: Path, exclude_paths: Optional[Sequence[Path]] = None) 
 
 
 def extra_file_sources(input_root: Path, output_root: Path) -> List[Path]:
-    sources: List[Path] = []
-    for source in sorted(input_root.rglob("*"), key=lambda path: str(path).lower()):
-        if not source.is_file():
-            continue
-        if source.suffix.lower() in VIDEO_EXTENSIONS:
-            continue
-        if path_is_under(source, output_root):
-            continue
-        sources.append(source)
-    return sources
+    # Same pruning as path_total_size: skip the output tree at its root rather
+    # than asking "is this file under it?" once per file.
+    sources = [
+        source
+        for source in walk_files(input_root, resolved_roots([output_root]))
+        if source.suffix.lower() not in VIDEO_EXTENSIONS
+    ]
+    return sorted(sources, key=lambda path: str(path).lower())
 
 
 def destination_snapshot(paths: Iterable[Path]) -> Dict[Path, Tuple[int, int]]:

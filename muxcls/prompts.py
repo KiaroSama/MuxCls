@@ -103,7 +103,24 @@ def ask_path(prompt: str, must_exist: bool = False, allow_back: bool = True) -> 
 
 
 def normalize_path_text(raw: str) -> Path:
-    return Path(raw.strip().strip('"').strip("'")).expanduser()
+    """Turn what the user typed into an absolute path.
+
+    Anchoring is not cosmetic. Every path here ends up as an argument to
+    ffprobe, ffmpeg or robocopy, and a relative one can collapse into a token
+    those tools read as an option instead of a file: with `.` as the input
+    root, `Path('.') / '-name.mkv'` is just `-name.mkv`, and ffprobe answers
+    "Unrecognized option". A perfectly readable file then gets reported as one
+    it could not read.
+    """
+    path = Path(raw.strip().strip('"').strip("'")).expanduser()
+    if path.is_absolute():
+        return path
+    try:
+        return path.resolve()
+    except OSError:
+        # resolve() can fail on an unreachable drive; anchoring to the working
+        # directory is still better than handing on a bare relative name.
+        return (Path.cwd() / path).absolute()
 
 
 def absolute_path_for_display(path: Path) -> Path:
