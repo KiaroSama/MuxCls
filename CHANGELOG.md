@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1] - 2026-08-09
+
+### Fixed
+
+- The progress bar did not actually move on real material. Running the app over full-size episodes showed both progress sources producing nothing: FFmpeg reports `out_time_us=N/A` for some material, so the remux row stayed at 0% until the file finished, and Robocopy's percentage was suppressed by `/NFL` - that percentage is printed as part of the file record, so `/NFL` silences it exactly as `/NP` does. A remux now falls back to the bytes FFmpeg reports written, and the Robocopy copy reports its percentage again.
+- The size beside a bar stayed at `0 B` for the whole copy. Robocopy reports a percentage and no byte count, and the per-file row read the byte count directly instead of deriving it from the ratio, which is what the `Overall` line already did.
+
 ## [1.5.0] - 2026-08-09
 
 ### Added
