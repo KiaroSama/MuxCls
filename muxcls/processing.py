@@ -13,7 +13,7 @@ from .media import find_video_files, operation_timeout_seconds, read_ffmpeg_byte
 from .muxlogic import build_ffmpeg_command, remux_needed_reasons, selected_audio_streams, selected_subtitle_streams
 from .output import display_path, make_output_path, partial_path, path_total_size
 from .copying import copy_extra_files, copy_video_without_remux
-from .progressview import ACTIVE, DONE, FAILED, SKIPPED, ProgressRow, ProgressView
+from .progressview import DONE, FAILED, SKIPPED, ProgressRow, ProgressView
 from .reporting import print_header
 
 

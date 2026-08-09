@@ -12,7 +12,7 @@ import time
 import pytest
 
 from muxcls.progressview import (
-    ACTIVE, DONE, FAILED, QUEUED, SKIPPED,
+    ACTIVE, DONE, FAILED, SKIPPED,
     ProgressRow, ProgressView, bar, truncate_visible, visible_length,
 )
 from muxcls.colors import C, color

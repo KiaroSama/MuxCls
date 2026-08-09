@@ -143,6 +143,8 @@ def make_output_path(input_root: Path, output_root: Path, input_file: Path, rule
         if output_file.resolve() == input_file.resolve():
             output_file = unique_path(output_file)
     except OSError:
+        # An unresolvable path cannot be compared, and refusing to guess is
+        # right here: make_output_path's caller already handles a name clash.
         pass
 
     if output_file.exists() and not rules.overwrite:

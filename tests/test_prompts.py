@@ -6,7 +6,6 @@ the rest of the app assumes it was. Nothing here touches the filesystem beyond
 tmp_path, and nothing spawns a process.
 """
 import builtins
-from pathlib import Path
 
 import pytest
 

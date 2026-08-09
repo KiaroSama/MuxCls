@@ -259,6 +259,8 @@ def copy_extra_files_with_robocopy(
         try:
             pairs.append((source, output_root / source.relative_to(input_root)))
         except ValueError:
+            # relative_to() raises when a source sits outside input_root, which
+            # means it is not ours to copy. Skipping it is the intended answer.
             pass
     destinations = [destination for _, destination in pairs]
 
