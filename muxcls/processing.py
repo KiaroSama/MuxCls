@@ -9,9 +9,9 @@ from .colors import ACTION_SEPARATOR_COLOR, C, PROCESS_DONE_COLOR, PROCESS_SEPAR
 from .logsetup import LOGGER
 from .models import MediaFile, SelectionRules
 from .textutil import center_for_terminal, format_elapsed_time, format_language_list, format_size_difference, format_stream_size, separator_line
-from .media import find_video_files, run_with_progress, scan_files
+from .media import find_video_files, operation_timeout_seconds, run_with_progress, scan_files
 from .muxlogic import build_ffmpeg_command, remux_needed_reasons, selected_audio_streams, selected_subtitle_streams
-from .output import display_path, make_output_path, path_total_size
+from .output import display_path, make_output_path, partial_path, path_total_size
 from .copying import copy_extra_files, copy_video_without_remux
 from .reporting import print_header
 
@@ -191,7 +191,8 @@ def process_files(
             print(dim("          no remux needed"))
             try:
                 copy_returncode = copy_video_without_remux(
-                    input_file, output_file, rules.overwrite, run_started_at
+                    input_file, output_file, rules.overwrite, run_started_at,
+                    operation_timeout_seconds(),
                 )
             except OSError as exc:
                 failed += 1
@@ -208,7 +209,11 @@ def process_files(
             print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
             continue
 
-        cmd, audio_keep, subtitles_keep = build_ffmpeg_command(input_file, output_file, media, rules)
+        # FFmpeg writes to a sibling partial file, which is renamed onto the real
+        # output only after it succeeds. A failure, timeout or Ctrl+C therefore
+        # leaves no half-remuxed file, and any previous output stays intact.
+        remux_target = partial_path(output_file)
+        cmd, audio_keep, subtitles_keep = build_ffmpeg_command(input_file, remux_target, media, rules)
         print(info(f"[{index}/{total}] Remuxing: {rel}"))
         print(dim(
             f"          audio kept: {len(audio_keep)} | subtitles kept: {len(subtitles_keep)}"
@@ -230,9 +235,17 @@ def process_files(
             finish("prepare-output", "FAILED", output_file, str(exc))
             continue
 
-        proc = run_with_progress(cmd, run_started_at)
+        remux_target.unlink(missing_ok=True)
+        try:
+            proc = run_with_progress(cmd, run_started_at, operation_timeout_seconds())
+            if proc.returncode == 0 and remux_target.exists():
+                remux_target.replace(output_file)
+        finally:
+            # Whatever happened - failure, timeout, Ctrl+C - nothing half-written
+            # is left in the output folder.
+            remux_target.unlink(missing_ok=True)
 
-        if proc.returncode == 0:
+        if proc.returncode == 0 and output_file.exists():
             succeeded += 1
             remuxed += 1
             output_files_for_size.append(output_file)

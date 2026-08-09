@@ -1,8 +1,8 @@
-# MuxCls v1.4.0
+# MuxCls v1.4.1
 
-Version tag suggestion: `v1.4.0`
+Version tag suggestion: `v1.4.1`
 
-MuxCls v1.4.0 fixes a set of stream-handling and process-control bugs, adds per-file progress
+MuxCls v1.4.1 fixes a set of stream-handling, data-safety and process-control bugs, adds per-file progress
 reporting, and runs on Linux and macOS as well as Windows.
 
 MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video,
@@ -10,6 +10,14 @@ audio, or subtitles.
 
 ## Fixed
 
+- A failed or cancelled copy can no longer destroy the output it was replacing. Copies stage
+  into a private folder or temporary file and are renamed into place only when complete.
+- A failed remux no longer leaves a partial file behind; FFmpeg writes to a sibling partial
+  file that is renamed onto the real output only on success.
+- Overwrite really replaces non-video files, including a destination Robocopy would consider
+  identical.
+- Every remux and copy runs under one timeout policy. Set `MUXCLS_OPERATION_TIMEOUT` (seconds,
+  `0` disables) to change it; the default is 3 hours.
 - Default track flags are now preserved. MuxCls used to force the first kept audio and
   subtitle stream to be the default and clear the rest, which moved the default onto a track
   the source never marked, and triggered a full remux of files that needed none purely to
@@ -44,12 +52,12 @@ audio, or subtitles.
 
 ## Changed
 
-- Updated runtime version to `1.4.0`.
+- Updated runtime version to `1.4.1`.
 - Logs are much quieter by default: UTC timestamps, `INFO` level, captured command output only
   for failures, and per-file paths relative to the run roots.
 - File copy backends moved into `muxcls/copying.py`, separating run orchestration from
   platform-specific copying.
-- The test suite grew to 60 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
+- The test suite grew to 71 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
 
 ## Requirements
 
@@ -80,7 +88,7 @@ On Linux and macOS, run `python MuxCls.py`.
 
 - No changes to output behavior, file formats, or configuration are required.
 - Output produced by earlier versions may have the default flag on the first kept track rather
-  than the track the source marked. Re-running those files with v1.4.0 reproduces the source
+  than the track the source marked. Re-running those files with v1.4.1 reproduces the source
   flags.
 - On Windows, run `.\run.ps1` from the project folder, or run `.\Install-MuxClsCommand.ps1`
   once to register the PowerShell `MuxCls` command.

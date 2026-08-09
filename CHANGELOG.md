@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.1] - 2026-08-09
+
+### Fixed
+
+- A failed or cancelled copy can no longer destroy the output it was replacing. The unchanged-video copy now stages into a private folder (Windows) or a temporary file (elsewhere) and renames it into place only after a complete copy; the previous destination is untouched if Robocopy fails, times out, or you press Ctrl+C.
+- A failed remux no longer leaves a partial file behind. FFmpeg writes to a sibling partial file that is renamed onto the real output only on success, so a failure, timeout or Ctrl+C leaves the output folder exactly as it was.
+- Overwrite now really replaces non-video files. Robocopy treats a destination with the same size and timestamp as identical and skips it even with `/IS /IT`, so non-video copying with overwrite enabled goes through the unconditional copy path instead.
+- Every remux and copy now runs under one timeout policy instead of only FFmpeg supporting one and nobody passing it. Set `MUXCLS_OPERATION_TIMEOUT` (seconds, `0` disables) to change it; the default is 3 hours.
+
 ## [1.4.0] - 2026-08-09
 
 ### Fixed
@@ -11,7 +20,7 @@
 - Files that `ffprobe` cannot read are no longer discarded silently. They are reported before rule selection, need an explicit confirmation to continue past, and are counted in the run totals, the log, and the final summary.
 - A file with a supported video extension but no video stream is now a validation failure before any copy or remux, instead of a warning followed by a "successful" output.
 - FFmpeg and copy operations can be interrupted. FFmpeg runs with `-nostdin`, every child process is started with no stdin, and a timeout, `Ctrl+C`, or an unexpected error terminates the child and kills it if it does not stop. A partial output file is removed rather than reported as success.
-- Overwrite is consistent in folder mode: it now reuses the output folder you asked for instead of creating a numbered sibling, and robocopy is given the flags that actually replace a destination which looks unchanged or newer (`/IS`, `/IT`). Without overwrite the numeric-suffix behavior is unchanged.
+- Overwrite is consistent in folder mode: it now reuses the output folder you asked for instead of creating a numbered sibling, and an unchanged-video copy replaces a destination Robocopy would otherwise skip. Without overwrite the numeric-suffix behavior is unchanged.
 
 ### Added
 

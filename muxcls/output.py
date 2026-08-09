@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .constants import AUDIO_ALL, AUDIO_BY_INDEX, AUDIO_BY_LANGUAGE, AUDIO_BY_TITLE, AUDIO_NONE, INVALID_FILENAME_CHARS, SUBTITLE_ALL, SUBTITLE_BY_INDEX, SUBTITLE_BY_LANGUAGE, SUBTITLE_BY_TITLE, SUBTITLE_NONE, VIDEO_EXTENSIONS
+from .constants import AUDIO_ALL, PARTIAL_MARKER, AUDIO_BY_INDEX, AUDIO_BY_LANGUAGE, AUDIO_BY_TITLE, AUDIO_NONE, INVALID_FILENAME_CHARS, SUBTITLE_ALL, SUBTITLE_BY_INDEX, SUBTITLE_BY_LANGUAGE, SUBTITLE_BY_TITLE, SUBTITLE_NONE, VIDEO_EXTENSIONS
 from .logsetup import LOGGER
 from .models import SelectionRules
 from .textutil import compact_labels
@@ -56,6 +56,12 @@ def selection_suffix(rules: SelectionRules) -> str:
 
     suffix = " + ".join(compact) if compact else "Muxed"
     return f"[{sanitize_filename_part(suffix)}]"
+
+
+def partial_path(final: Path) -> Path:
+    """Sibling name used while a file is still being written. The real extension
+    stays last so FFmpeg can still infer the output container from it."""
+    return final.with_name(f"{final.stem}{PARTIAL_MARKER}{final.suffix}")
 
 
 def unique_path(path: Path) -> Path:

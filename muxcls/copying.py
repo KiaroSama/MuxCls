@@ -8,32 +8,26 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-from .constants import COPY_CHUNK_BYTES, IS_WINDOWS, ROBOCOPY_BIN, VIDEO_EXTENSIONS
+from .constants import COPY_CHUNK_BYTES, IS_WINDOWS, PARTIAL_MARKER, ROBOCOPY_BIN, VIDEO_EXTENSIONS
 from .colors import err
 from .logsetup import LOGGER
 from .models import SelectionRules
 from .textutil import ProgressPrinter
 from .media import run_command, run_with_progress
-from .output import destination_snapshot, extra_file_sources, path_is_under, robocopy_success
-
-
-# Name of the in-progress copy, renamed onto the destination when complete.
-PARTIAL_SUFFIX = ".muxcls-partial"
+from .output import destination_snapshot, extra_file_sources, partial_path, path_is_under, robocopy_success
 
 
 def robocopy_available() -> bool:
     return IS_WINDOWS and shutil.which(ROBOCOPY_BIN) is not None
 
 
-def robocopy_overwrite_flags(overwrite: bool) -> List[str]:
-    """Robocopy skips destinations it considers same, newer or older. Overwrite
-    means "make the destination match the source", so those skips are switched
-    off; without overwrite they become explicit excludes."""
-    if overwrite:
-        return ["/IS", "/IT"]
+def robocopy_skip_existing_flags() -> List[str]:
+    """Excludes that make robocopy leave every existing destination alone. Only
+    the no-overwrite tree copy uses robocopy now, so this is all it needs."""
     return ["/XC", "/XN", "/XO"]
 
 
@@ -41,16 +35,18 @@ def copy_file_with_progress(
     source: Path,
     destination: Path,
     total_started_at: Optional[float] = None,
+    timeout: Optional[float] = None,
 ) -> None:
     """Chunked stdlib copy with a live elapsed line.
 
     The bytes go to a temporary file beside the destination and are renamed into
-    place only once the copy is complete. A failure or a Ctrl+C therefore leaves
-    neither a partial file nor a damaged previous output: whatever was already at
-    the destination is still there, untouched.
+    place only once the copy is complete. A failure, a timeout or a Ctrl+C
+    therefore leaves neither a partial file nor a damaged previous output:
+    whatever was already at the destination is still there, untouched.
     """
     progress = ProgressPrinter(total_started_at)
-    partial = destination.with_name(destination.name + PARTIAL_SUFFIX)
+    partial = partial_path(destination)
+    deadline = None if timeout is None else time.perf_counter() + timeout
     try:
         with source.open("rb") as reader, partial.open("wb") as writer:
             while True:
@@ -58,6 +54,8 @@ def copy_file_with_progress(
                 if not chunk:
                     break
                 writer.write(chunk)
+                if deadline is not None and time.perf_counter() > deadline:
+                    raise TimeoutError(f"copy of {source.name} exceeded its {timeout}s timeout")
                 progress.tick()
         copy_timestamps(source, partial)
         partial.replace(destination)
@@ -84,6 +82,7 @@ def copy_video_without_remux(
     output_file: Path,
     overwrite: bool = False,
     total_started_at: Optional[float] = None,
+    timeout: Optional[float] = None,
 ) -> int:
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -91,9 +90,9 @@ def copy_video_without_remux(
     # on the way, so a renamed output (single-file mode adds a rule suffix) has
     # to go through the stdlib copy even on Windows.
     if robocopy_available() and input_file.name == output_file.name:
-        return copy_video_with_robocopy(input_file, output_file, overwrite, total_started_at)
+        return copy_video_with_robocopy(input_file, output_file, overwrite, total_started_at, timeout)
 
-    copy_file_with_progress(input_file, output_file, total_started_at)
+    copy_file_with_progress(input_file, output_file, total_started_at, timeout)
     if not output_file.exists():
         raise OSError("the copied file is missing after the copy finished")
     return 0
@@ -104,42 +103,51 @@ def copy_video_with_robocopy(
     output_file: Path,
     overwrite: bool,
     total_started_at: Optional[float] = None,
+    timeout: Optional[float] = None,
 ) -> int:
-    before = destination_snapshot([output_file])
+    """Copy through a private staging folder, then rename into place.
 
-    if overwrite and output_file.exists():
-        # Robocopy decides for itself whether a destination is "the same" from
-        # size and timestamp, and skips it even with /IS /IT (measured). Clearing
-        # the destination first is the only way to make overwrite mean overwrite.
-        output_file.unlink()
+    Robocopy cannot rename while copying and decides for itself whether a
+    destination is "the same" (it skips one that matches on size and timestamp
+    even with /IS /IT - measured). Staging sidesteps both: robocopy always writes
+    into an empty folder, and an existing destination is only replaced once a
+    complete copy exists. A failure or a Ctrl+C leaves the old file untouched.
+    """
+    staging = output_file.parent / f"{PARTIAL_MARKER}-{output_file.stem}"
+    try:
+        shutil.rmtree(staging, ignore_errors=True)
+        staging.mkdir(parents=True, exist_ok=True)
 
-    args = [
-        ROBOCOPY_BIN,
-        str(input_file.parent),
-        str(output_file.parent),
-        input_file.name,
-        "/R:1",
-        "/W:1",
-        "/NFL",
-        "/NDL",
-        "/NJH",
-        "/NJS",
-        "/NP",
-        "/J",
-    ]
-    args.extend(robocopy_overwrite_flags(overwrite))
+        args = [
+            ROBOCOPY_BIN,
+            str(input_file.parent),
+            str(staging),
+            input_file.name,
+            "/R:1",
+            "/W:1",
+            "/NFL",
+            "/NDL",
+            "/NJH",
+            "/NJS",
+            "/NP",
+            "/J",
+        ]
+        proc = run_with_progress(args, total_started_at, timeout)
 
-    proc = run_with_progress(args, total_started_at)
+        staged = staging / input_file.name
+        if not robocopy_success(proc.returncode):
+            raise OSError(f"robocopy failed with exit code {proc.returncode}")
+        if not staged.exists():
+            raise OSError("robocopy did not create the output file")
+        if staged.stat().st_size != input_file.stat().st_size:
+            raise OSError("robocopy produced an incomplete copy")
+        if output_file.exists() and not overwrite:
+            raise OSError("output already exists and overwrite is disabled")
 
-    after = destination_snapshot([output_file])
-    if not robocopy_success(proc.returncode):
-        raise OSError(f"robocopy failed with exit code {proc.returncode}")
-    if output_file not in after:
-        raise OSError("robocopy did not create the output file")
-    if before and before.get(output_file) == after.get(output_file):
-        LOGGER.info("Destination was already identical: %s", output_file)
-
-    return proc.returncode
+        staged.replace(output_file)
+        return proc.returncode
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 def copy_extra_files(input_root: Path, output_root: Path, rules: SelectionRules) -> Tuple[int, int, int]:
@@ -150,7 +158,11 @@ def copy_extra_files(input_root: Path, output_root: Path, rules: SelectionRules)
     if not sources:
         return 0, 0, 0
 
-    if robocopy_available():
+    # Robocopy only ever copies what it judges to be different, and it judges a
+    # destination with the same size and timestamp to be identical even with
+    # /IS /IT (measured). Overwrite must be unconditional, so it goes through the
+    # stdlib copy, which replaces every destination through a temporary file.
+    if robocopy_available() and not rules.overwrite:
         return copy_extra_files_with_robocopy(sources, input_root, output_root, rules)
     return copy_extra_files_with_stdlib(sources, input_root, output_root, rules)
 
@@ -223,7 +235,7 @@ def copy_extra_files_with_robocopy(
     if path_is_under(output_root, input_root):
         args.extend(["/XD", str(output_root)])
 
-    args.extend(robocopy_overwrite_flags(rules.overwrite))
+    args.extend(robocopy_skip_existing_flags())
 
     proc = run_command(args, timeout=None)
 
