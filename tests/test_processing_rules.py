@@ -185,3 +185,80 @@ def test_probe_failures_are_counted_in_totals_and_results(series, tmp_path):
     assert summary.total == 2
     assert summary.failed == 1
     assert any(r["input"] == str(broken) for r in summary.results)
+
+
+# --- progress source: real material can report out_time_us=N/A -------------
+
+# Copied verbatim from `ffmpeg -progress pipe:1` on a real HEVC/Opus release
+# (Sword Art Online S01E01). Every block reported N/A for the timestamp while
+# total_size counted up normally.
+FFMPEG_BLOCK_WITHOUT_TIMESTAMP = (
+    "frame=17944\nfps=0.00\nstream_0_0_q=-1.0\nbitrate=N/A\ntotal_size=244318208\n"
+    "out_time_us=N/A\nout_time_ms=N/A\nout_time=N/A\ndup_frames=0\ndrop_frames=0\n"
+    "speed=N/A\nprogress=continue\n"
+)
+
+
+def test_a_remux_that_reports_no_timestamp_still_advances(series, tmp_path, monkeypatch):
+    """Without the byte fallback the bar sits at 0% for the whole file and then
+    jumps to 100%, which reads as a stuck job on a multi-GB remux."""
+    source = _placeholder(series, "E01.mkv")
+    media = _remuxable(source)
+    rows = []
+
+    def fake(cmd, total_started_at=None, timeout=None, on_output=None, **_kw):
+        if on_output is not None:
+            on_output(FFMPEG_BLOCK_WITHOUT_TIMESTAMP)
+        target = Path(cmd[-1])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"remuxed")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    real_view = processing.ProgressView
+
+    class Recording(real_view):
+        def update(self, index, percent=None, completed=None):
+            rows.append((percent, completed))
+            super().update(index, percent=percent, completed=completed)
+
+    monkeypatch.setattr(processing, "run_with_progress", fake)
+    monkeypatch.setattr(processing, "ProgressView", Recording)
+
+    processing.process_files(
+        [media], series, tmp_path / "Out",
+        _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"]),
+    )
+
+    assert rows == [(None, 244318208)], "the byte count is the only figure that moves here"
+
+
+def test_a_remux_that_reports_a_timestamp_still_prefers_it(series, tmp_path, monkeypatch):
+    # The fallback must not take over when FFmpeg does report a position:
+    # a timeline percentage is accurate, a byte ratio only approximates it.
+    source = _placeholder(series, "E01.mkv")
+    media = _remuxable(source)
+    media.duration_seconds = 100.0          # 25 s of it is 25%
+    seen = []
+
+    def fake(cmd, total_started_at=None, timeout=None, on_output=None, **_kw):
+        if on_output is not None:
+            on_output("total_size=1000\nout_time_us=25000000\nprogress=continue\n")
+        target = Path(cmd[-1])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"remuxed")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    class Recording(processing.ProgressView):
+        def update(self, index, percent=None, completed=None):
+            seen.append((percent, completed))
+            super().update(index, percent=percent, completed=completed)
+
+    monkeypatch.setattr(processing, "run_with_progress", fake)
+    monkeypatch.setattr(processing, "ProgressView", Recording)
+
+    processing.process_files(
+        [media], series, tmp_path / "Out",
+        _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"]),
+    )
+
+    assert seen == [(25.0, None)]

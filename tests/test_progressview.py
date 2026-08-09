@@ -207,3 +207,13 @@ def test_close_restores_the_cursor(monkeypatch):
     view.start(0)
     view.close()
     assert console.getvalue().endswith("\x1b[?25h"), "the cursor must come back"
+
+
+def test_a_row_that_only_knows_a_percentage_still_shows_how_much_is_done():
+    """Robocopy reports a percentage and no byte count. Reading row.completed
+    directly left the size column at 0 B for the whole copy while the bar beside
+    it moved."""
+    row = ProgressRow(name="a.mkv", total=1_000_000, percent=40.0, state=ACTIVE)
+    line = ProgressView([row], enabled=False).compose(99, 24)[-1]
+
+    assert "391 KB / 977 KB" in line, "the size must follow the bar, not sit at 0 B"

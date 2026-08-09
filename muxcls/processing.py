@@ -9,7 +9,7 @@ from .colors import ACTION_SEPARATOR_COLOR, C, PROCESS_DONE_COLOR, PROCESS_SEPAR
 from .logsetup import LOGGER
 from .models import MediaFile, SelectionRules
 from .textutil import center_for_terminal, format_elapsed_time, format_language_list, format_size_difference, format_stream_size, separator_line
-from .media import find_video_files, operation_timeout_seconds, read_ffmpeg_percent, run_with_progress, scan_files
+from .media import find_video_files, operation_timeout_seconds, read_ffmpeg_bytes, read_ffmpeg_percent, run_with_progress, scan_files
 from .muxlogic import build_ffmpeg_command, remux_needed_reasons, selected_audio_streams, selected_subtitle_streams
 from .output import display_path, make_output_path, partial_path, path_total_size
 from .copying import copy_extra_files, copy_video_without_remux
@@ -277,6 +277,13 @@ def process_files(
             percent = read_ffmpeg_percent(chunk, media.duration_seconds)
             if percent is not None:
                 view.update(position, percent=percent)
+                return
+            # Some material reports out_time_us=N/A for the whole stream copy.
+            # The byte count still moves, and the row already knows the input
+            # size, so it can show real progress instead of a frozen 0%.
+            written = read_ffmpeg_bytes(chunk)
+            if written is not None:
+                view.update(position, completed=written)
 
         try:
             proc = run_with_progress(cmd, run_started_at, operation_timeout_seconds(),

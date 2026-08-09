@@ -123,6 +123,15 @@ class ProgressRow:
             return max(0.0, min(1.0, self.completed / self.total))
         return None
 
+    @property
+    def shown_bytes(self) -> int:
+        """What the size column reports. Robocopy reports a percentage and no
+        byte count, so without deriving this the bar would move while the size
+        beside it sat at 0 B for the whole copy."""
+        if self.completed:
+            return self.completed
+        return int((self.ratio or 0.0) * (self.total or 0))
+
     def live_elapsed(self) -> float:
         if self.state == ACTIVE and self.started_at is not None:
             return time.perf_counter() - self.started_at
@@ -193,7 +202,7 @@ def stats_line(row: ProgressRow, width: int, show_elapsed: bool = True) -> str:
     line = (
         f"{bar(ratio, bar_width, row.state)} "
         f"{color(percent_text, C.PROGRESS_PERCENT)} | "
-        f"{color(size_pair(row.completed or (row.total if row.state == DONE else 0), row.total), C.PROGRESS_SIZE)}"
+        f"{color(size_pair(row.shown_bytes, row.total), C.PROGRESS_SIZE)}"
     )
 
     if row.state in (DONE, FAILED, SKIPPED):
@@ -277,7 +286,7 @@ class ProgressView:
             ratio += active.ratio / total_files
 
         total_bytes = sum(row.total or 0 for row in self.rows)
-        done_bytes = sum(int((row.ratio or 0.0) * (row.total or 0)) for row in self.rows)
+        done_bytes = sum(row.shown_bytes for row in self.rows)
         bar_width = bar_width_for(width)
         elapsed = time.perf_counter() - self._started_at
         remaining = eta_seconds(ratio if 0 < ratio < 1 else None, self._started_at)

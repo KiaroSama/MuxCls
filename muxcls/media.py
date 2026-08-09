@@ -121,6 +121,7 @@ def run_command(
 
 
 FFMPEG_TIME_KEY = "out_time_us="
+FFMPEG_SIZE_KEY = "total_size="
 ROBOCOPY_PERCENT = re.compile(r"(\d{1,3}(?:\.\d+)?)%")
 
 
@@ -140,6 +141,24 @@ def read_ffmpeg_percent(text: str, duration_seconds: Optional[float]) -> Optiona
     except ValueError:
         return None
     return max(0.0, min(100.0, seconds / duration_seconds * 100.0))
+
+
+def read_ffmpeg_bytes(text: str) -> Optional[int]:
+    """Bytes written so far, from the same `-progress` blocks.
+
+    Measured on a real HEVC/Opus release: a stream copy can report
+    `out_time_us=N/A` in every block while `total_size=` counts up normally.
+    When that happens this is the only figure that moves, so the bar would
+    otherwise sit at 0% for the whole file and then jump to 100%.
+    """
+    index = text.rfind(FFMPEG_SIZE_KEY)
+    if index < 0:
+        return None
+    raw = text[index + len(FFMPEG_SIZE_KEY):].split("\n", 1)[0].strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
 def read_robocopy_percent(text: str) -> Optional[float]:
