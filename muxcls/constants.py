@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".webm", ".mov", ".avi"}
 
 
@@ -12,7 +14,30 @@ FFPROBE_BIN = "ffprobe"
 ROBOCOPY_BIN = "robocopy"
 
 
-APP_VERSION = "1.3.1"
+# Robocopy only exists on Windows; every other platform copies with the stdlib.
+IS_WINDOWS = os.name == "nt"
+
+
+APP_VERSION = "1.4.0"
+
+
+# Probing a single file is a metadata read, so it should never take minutes.
+PROBE_TIMEOUT_SECONDS = 120.0
+
+
+# How long a child process gets to exit after terminate() before it is killed.
+PROCESS_KILL_GRACE_SECONDS = 5.0
+
+
+# How often the progress line is refreshed while a child process runs.
+PROGRESS_POLL_SECONDS = 0.2
+
+
+# Returned when a command is stopped because it exceeded its timeout.
+TIMEOUT_RETURNCODE = 124
+
+
+COPY_CHUNK_BYTES = 4 * 1024 * 1024
 
 
 AUDIO_BY_LANGUAGE = "1"

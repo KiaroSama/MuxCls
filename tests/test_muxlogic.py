@@ -101,3 +101,67 @@ def test_build_ffmpeg_command_maps_selected_streams():
     assert "0:2" not in cmd  # eng audio dropped
     assert "-y" in cmd  # overwrite=True
     assert "-c" in cmd and "copy" in cmd
+
+
+# --- B-01: the source default disposition is preserved, never forced to the first stream ---
+
+def _media_with_late_defaults() -> MediaFile:
+    # The *second* audio track and the *second* subtitle track carry default=1,
+    # which is what real dual-audio releases usually look like.
+    return MediaFile(path=Path("in.mkv"), streams=[
+        StreamInfo(index=0, codec_type="video"),
+        StreamInfo(index=1, codec_type="audio", language="eng"),
+        StreamInfo(index=2, codec_type="audio", language="jpn", disposition_default=1),
+        StreamInfo(index=3, codec_type="subtitle", language="eng"),
+        StreamInfo(index=4, codec_type="subtitle", language="fas", disposition_default=1),
+    ])
+
+
+def _disposition_value(cmd, spec):
+    return cmd[cmd.index(f"-disposition:{spec}") + 1]
+
+
+def test_default_disposition_of_a_non_first_audio_stream_is_preserved():
+    media = _media_with_late_defaults()
+    cmd, _, _ = build_ffmpeg_command(Path("in.mkv"), Path("out.mkv"), media, _rules())
+    assert _disposition_value(cmd, "a:0") == "-default"
+    assert _disposition_value(cmd, "a:1") == "+default"
+
+
+def test_default_disposition_of_a_non_first_subtitle_stream_is_preserved():
+    media = _media_with_late_defaults()
+    cmd, _, _ = build_ffmpeg_command(Path("in.mkv"), Path("out.mkv"), media, _rules())
+    assert _disposition_value(cmd, "s:0") == "-default"
+    assert _disposition_value(cmd, "s:1") == "+default"
+
+
+def test_first_selected_stream_is_not_forced_to_default_when_source_had_none():
+    media = MediaFile(path=Path("in.mkv"), streams=[
+        StreamInfo(index=0, codec_type="video"),
+        StreamInfo(index=1, codec_type="audio", language="jpn"),
+    ])
+    cmd, _, _ = build_ffmpeg_command(Path("in.mkv"), Path("out.mkv"), media, _rules())
+    assert _disposition_value(cmd, "a:0") == "-default"
+
+
+def test_remux_is_not_required_only_to_normalize_default_disposition():
+    # Keeping every stream of a file whose default sits on a later track must
+    # stay a plain copy: nothing about the output actually changes.
+    media = _media_with_late_defaults()
+    rules = _rules()
+    reasons = remux_needed_reasons(
+        media, rules,
+        selected_audio_streams(media, rules),
+        selected_subtitle_streams(media, rules),
+    )
+    assert reasons == []
+
+
+def test_dropping_the_default_stream_still_preserves_remaining_dispositions():
+    media = _media_with_late_defaults()
+    rules = _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["eng"])
+    cmd, audio_keep, _ = build_ffmpeg_command(Path("in.mkv"), Path("out.mkv"), media, rules)
+    assert [s.index for s in audio_keep] == [1]
+    # The only surviving audio track was not default in the source, so it must
+    # not silently become default in the output.
+    assert _disposition_value(cmd, "a:0") == "-default"

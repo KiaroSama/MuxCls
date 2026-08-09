@@ -1,8 +1,8 @@
 # MuxCls
 
-Current version: **1.3.1**
+Current version: **1.4.0**
 
-MuxCls is a Windows-friendly FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
+MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
 It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, audio, or subtitles. It is designed for interactive cleanup of media libraries where you want to keep selected audio tracks, subtitle tracks, metadata, chapters, and MKV attachments without changing media quality.
 
@@ -19,21 +19,32 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Creates selection-based output names such as `SeriesName [JA Audio + EN Subs]`.
 - Avoids overwriting existing output by default and uses numeric suffixes when needed.
 - Skips files when the selected audio rule matches no audio stream, instead of creating silent video-only output.
-- Copies unchanged video files with `robocopy` when the selected rules do not require remuxing.
+- Preserves the default-track flags that the source already had, instead of forcing the first kept track to be default.
+- Rejects an output folder that is the input folder or inside it, so a run's output can never become the next run's input.
+- Reports files that `ffprobe` cannot read instead of dropping them, and asks before continuing without them.
+- Fails files that have a video extension but no video stream, instead of counting them as successful output.
+- Copies unchanged video files with `robocopy` on Windows, or the Python standard library on other platforms.
 - Can preserve metadata, chapters, stream labels, language tags, and MKV font attachments when selected.
 - Can edit kept output audio and subtitle stream language/title metadata without changing the source files.
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
-- Shows live elapsed progress while remuxing files or copying unchanged video files.
+- Shows each file's own size change as soon as that file finishes, next to the run total at the end.
+- Shows a per-file elapsed timer that starts at zero for each file, alongside the elapsed time of the whole run.
 - Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
 - Includes a PowerShell launcher (`run.ps1`) and an optional installer that registers a `MuxCls` command.
 
 ## Requirements
 
-- Windows with Windows PowerShell or PowerShell 7 for the included launchers.
 - Python 3 available as `py -3` or `python`.
 - FFmpeg installed and available in `PATH` as both `ffmpeg` and `ffprobe`.
-- Robocopy available in `PATH` for unchanged-video and non-video file copy operations. Robocopy is included with Windows.
 - No external Python packages are required.
+
+Windows-only extras:
+
+- Windows PowerShell or PowerShell 7 for the included launchers (`run.ps1`, `Install-MuxClsCommand.ps1`).
+- Robocopy, which ships with Windows, is used for unchanged-video and non-video file copies.
+
+On Linux and macOS MuxCls runs with `python MuxCls.py` and copies files with the Python
+standard library instead of robocopy. Everything else behaves the same.
 
 ## Installation
 
@@ -122,11 +133,18 @@ Example suffixes:
 - `SeriesName [Audio 1+2 + Subs 3]`
 - `SeriesName [Muxed]`
 
-If a generated folder or file already exists, MuxCls adds a numeric suffix such as `(2)`.
+If a generated folder already exists and overwrite is off, MuxCls adds a numeric suffix such as
+`(2)`. With overwrite on it reuses the folder you asked for instead of numbering it.
+
+In folder mode the output folder may not be the input folder or any folder inside it. MuxCls
+rejects such a path, because that output would be picked up as input by the next run.
 
 If you enter a relative output folder, MuxCls shows the resolved absolute path and asks for confirmation. If an output path looks like a media file name, such as `output.mkv`, MuxCls rejects it and asks for a folder path.
 
-If the selected rules do not require remuxing a video file, MuxCls copies that file unchanged with `robocopy` instead of running FFmpeg. Remux and unchanged-video copy operations show live elapsed progress while the current operation is running. When enabled, non-video files are copied to the output folder with the same relative paths as the source folder.
+If the selected rules do not require remuxing a video file, MuxCls copies that file unchanged
+instead of running FFmpeg: with `robocopy` on Windows, or the Python standard library on other
+platforms. Remux and copy operations show a live per-file elapsed timer next to the elapsed time
+of the whole run, and print that file's size change when it finishes. When enabled, non-video files are copied to the output folder with the same relative paths as the source folder.
 
 After processing, the summary shows how many video files were remuxed, copied unchanged, skipped, or failed. It also reports copied non-video file counts, elapsed time, and the total size difference between the source and output.
 
@@ -145,7 +163,9 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 - MuxCls creates output files and folders based on your selections.
 - MuxCls may copy non-video files into the output folder when that option is enabled.
 - Existing output files are not overwritten by default; MuxCls uses safe output names and FFmpeg is run with no-overwrite mode.
-- If overwrite is enabled, FFmpeg may replace matching output files.
+- If overwrite is enabled, MuxCls reuses the output folder you asked for and replaces matching files.
+- MuxCls refuses an output folder that is inside the input folder when processing a folder.
+- If a file cannot be read by `ffprobe`, MuxCls reports it and asks before continuing without it.
 - If your selected audio rule matches no audio stream in a file, that file is skipped and counted as `No audio match`.
 - `Install-MuxClsCommand.ps1` adds a `MuxCls` function to your PowerShell profile(s) and removes any stale MuxCls folder entry left in your user `PATH` by older versions. It does not add anything to `PATH`.
 - Logs can contain local file paths, command lines, system information, warnings, and FFmpeg output. Do not publish local `Logs` files.
@@ -185,12 +205,13 @@ is a thin entry point that imports and runs `muxcls.app.main`.
 | `muxcls/models.py` | Data models (`StreamInfo`, `MediaFile`, `SelectionRules`) and ffprobe parsing helpers. |
 | `muxcls/textutil.py` | Terminal/text formatting, language, and size helpers. |
 | `muxcls/prompts.py` | Interactive input prompts and menu navigation. |
-| `muxcls/media.py` | External tool execution (`ffprobe`/`ffmpeg`/`robocopy`) and file probing/scanning. |
+| `muxcls/media.py` | External process execution (`ffprobe`/`ffmpeg`), timeouts, cancellation, and file probing/scanning. |
 | `muxcls/muxlogic.py` | Stream selection logic, remux-needed decisions, and FFmpeg command building. |
 | `muxcls/output.py` | Output path resolution, naming, and filesystem helpers. |
 | `muxcls/reporting.py` | Scan reports, unique-stream summaries, and selection previews. |
 | `muxcls/selection.py` | Interactive rule configuration (advanced and exact modes). |
-| `muxcls/processing.py` | File processing, remuxing, copying, and verification. |
+| `muxcls/copying.py` | File copy backends: robocopy on Windows, Python standard library elsewhere. |
+| `muxcls/processing.py` | Per-file processing decisions, remuxing, run summary, and verification. |
 | `muxcls/app.py` | Main menu, top-level flow, and program entry (`main`). |
 
 ## Logs
@@ -198,10 +219,19 @@ is a thin entry point that imports and runs `muxcls.app.main`.
 MuxCls creates a `Logs` folder next to `MuxCls.py` and writes one UTF-8 log file per run. The Python app prints the exact log file path after startup. Log filenames include the date and time, for example:
 
 ```text
-Logs\muxcls_2026-05-15_22-30-15.log
+Logs\muxcls_2026-05-15_22-30-15_UTC.log
 ```
 
-Logs include startup information, FFmpeg and robocopy command lines, command return codes, warnings, captured command output, output size difference, and structured per-file `RESULT` / `SUMMARY_RESULT` lines with the action, status, input path, output path, detail, return code, and elapsed time.
+Log timestamps are UTC. At the default level a log holds startup information, the resolved rules,
+one line per file with its status, action, size change, elapsed time and return code, plus the run
+summary. Failures also carry the captured command output.
+
+Set the `MUXCLS_DEBUG` environment variable to `1` for a verbose log that also records every
+command line and the captured output of successful commands:
+
+```powershell
+$env:MUXCLS_DEBUG = "1"; .un.ps1
+```
 
 Logs are intended for local troubleshooting and are ignored by Git.
 
@@ -218,11 +248,11 @@ python -m pytest tests -v
 ```
 
 The end-to-end tests in `tests/test_processing_e2e.py` require `ffmpeg`/`ffprobe` in
-`PATH` and are skipped automatically if unavailable. The robocopy copy-unchanged test
-additionally requires Windows (`robocopy`) and is skipped on other platforms.
+`PATH` and are skipped automatically if unavailable. The robocopy overwrite tests
+additionally require Windows and are skipped on other platforms.
 
 A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the same suite on
-`windows-latest` for every push and pull request.
+`windows-latest` and `ubuntu-latest` for every push and pull request.
 
 ## Troubleshooting
 

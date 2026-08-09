@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import shutil
+import sys
+import time
 from typing import Iterable, List, Optional, Sequence
 
 from .constants import UNKNOWN_LANGUAGE_DISPLAY, UNKNOWN_LANGUAGE_INPUTS
@@ -120,6 +122,49 @@ def format_elapsed_time(seconds: float) -> str:
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+
+class ProgressPrinter:
+    """One rewritable console line showing how long the current file has been
+    running, next to how long the whole run has been going. Each file gets its
+    own printer, so its timer starts at zero and stops when the file is done."""
+
+    def __init__(self, total_started_at: Optional[float] = None) -> None:
+        self.started_at = time.perf_counter()
+        self.total_started_at = total_started_at
+        self._last_second = -1
+        self._line_open = False
+        # Redirected output has no cursor to rewrite, so \r would pile every
+        # tick into the file instead of replacing the previous one.
+        self._enabled = sys.stdout.isatty()
+
+    def tick(self, force: bool = False) -> None:
+        if not self._enabled:
+            return
+        elapsed = int(time.perf_counter() - self.started_at)
+        if elapsed == self._last_second and not force:
+            return
+        self._last_second = elapsed
+
+        text = f"          Elapsed {format_elapsed_time(elapsed)}"
+        if self.total_started_at is not None:
+            total = time.perf_counter() - self.total_started_at
+            text += f" | Total {format_elapsed_time(total)}"
+
+        if not self._line_open:
+            sys.stdout.write("\n")
+            self._line_open = True
+        sys.stdout.write("\r" + color(text, C.BOLD + C.SUMMARY_ELAPSED))
+        sys.stdout.flush()
+
+    def close(self) -> None:
+        """Erase the progress line. Safe to call more than once."""
+        if not self._enabled:
+            return
+        blank = "\r" + (" " * terminal_width()) + "\r"
+        sys.stdout.write(blank + "\n" if self._line_open else blank)
+        sys.stdout.flush()
+        self._line_open = False
 
 
 def format_stream_size(size_bytes: Optional[int]) -> str:

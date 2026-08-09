@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.4.0] - 2026-08-09
+
+### Fixed
+
+- Default track flags are now preserved. MuxCls used to force the first kept audio and subtitle stream to be the default and clear the rest, which moved the default onto a track the source never marked. It also triggered a full remux of files that needed none, purely to apply that normalization. Selected streams now keep exactly the default flags they had.
+- A file with no audio stream is no longer processed silently when audio was requested. Any audio mode other than "remove all audio" now records `NO_AUDIO_MATCH` for such a file, instead of only doing so when the file had audio that failed to match.
+- "Remove all audio" is reachable again for sets with a single audio track. The audio menu was skipped whenever no file had more than one track, which also removed the only way to ask for no audio. It is now skipped only when nothing in the scan has audio at all.
+- In folder mode the output folder can no longer be the input folder or a folder inside it. Such output was rescanned as input on the next run.
+- Files that `ffprobe` cannot read are no longer discarded silently. They are reported before rule selection, need an explicit confirmation to continue past, and are counted in the run totals, the log, and the final summary.
+- A file with a supported video extension but no video stream is now a validation failure before any copy or remux, instead of a warning followed by a "successful" output.
+- FFmpeg and copy operations can be interrupted. FFmpeg runs with `-nostdin`, every child process is started with no stdin, and a timeout, `Ctrl+C`, or an unexpected error terminates the child and kills it if it does not stop. A partial output file is removed rather than reported as success.
+- Overwrite is consistent in folder mode: it now reuses the output folder you asked for instead of creating a numbered sibling, and robocopy is given the flags that actually replace a destination which looks unchanged or newer (`/IS`, `/IT`). Without overwrite the numeric-suffix behavior is unchanged.
+
+### Added
+
+- Each file prints its own size change as soon as it finishes, in addition to the run total.
+- Each file has its own elapsed timer that starts at zero and stops when that file is done, shown next to the elapsed time of the whole run.
+- Linux and macOS support: robocopy is used only on Windows, and every other platform copies with the Python standard library. CI now runs the suite on `ubuntu-latest` as well as `windows-latest`.
+- `MUXCLS_DEBUG=1` enables a verbose log with command lines and successful-command output.
+- Regression tests for every fix above, including real-file end-to-end coverage.
+
+### Changed
+
+- Logs are much quieter by default: UTC timestamps, `INFO` level instead of `DEBUG`, captured command output only for failures, per-file paths relative to the run roots, and no duplicated per-file summary block at the end.
+- File copy backends moved from `processing.py` into a new `muxcls/copying.py`, so process orchestration and platform-specific copying are separate.
+
 ## [Unreleased]
 
 ### Changed

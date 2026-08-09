@@ -1,10 +1,14 @@
 """Unit tests for output path/name resolution in muxcls.output."""
+import os
 from pathlib import Path
+
+import pytest
 
 from muxcls.constants import AUDIO_ALL, AUDIO_BY_LANGUAGE, SUBTITLE_ALL, SUBTITLE_NONE
 from muxcls.models import SelectionRules
 from muxcls.output import (
     make_output_path,
+    output_base_conflict,
     resolve_output_root,
     sanitize_filename_part,
     selection_suffix,
@@ -91,3 +95,71 @@ def test_unique_path_adds_numeric_suffix(tmp_path):
 def test_unique_path_returns_same_path_if_free(tmp_path):
     candidate = tmp_path / "free.mkv"
     assert unique_path(candidate) == candidate
+
+
+# --- B-04: a folder run must never be able to write inside its own input ---
+
+def test_output_base_inside_input_folder_is_rejected(tmp_path):
+    input_root = tmp_path / "Series"
+    (input_root / "nested").mkdir(parents=True)
+    assert output_base_conflict(input_root, input_root / "nested") is not None
+
+
+def test_output_base_equal_to_input_folder_is_rejected(tmp_path):
+    input_root = tmp_path / "Series"
+    input_root.mkdir()
+    assert output_base_conflict(input_root, input_root) is not None
+
+
+def test_output_base_rejection_ignores_windows_path_case(tmp_path):
+    input_root = tmp_path / "Series"
+    input_root.mkdir()
+    shouted = Path(str(input_root).upper())
+    conflict = output_base_conflict(input_root, shouted)
+    if os.name == "nt":
+        assert conflict is not None
+    else:  # POSIX paths are genuinely case-sensitive; a different case is a different folder.
+        assert conflict is None
+
+
+def test_output_base_outside_input_folder_is_allowed(tmp_path):
+    input_root = tmp_path / "Series"
+    input_root.mkdir()
+    assert output_base_conflict(input_root, tmp_path / "Out") is None
+
+
+def test_output_base_beside_a_single_input_file_is_allowed(tmp_path):
+    input_file = tmp_path / "clip.mkv"
+    input_file.write_bytes(b"0")
+    assert output_base_conflict(input_file, tmp_path) is None
+
+
+def test_resolve_output_root_refuses_an_output_base_inside_the_input(tmp_path):
+    input_root = tmp_path / "Series"
+    input_root.mkdir()
+    with pytest.raises(RuntimeError):
+        resolve_output_root(input_root, input_root / "Out", _rules())
+
+
+# --- B-08: overwrite reuses the intended output root instead of numbering it ---
+
+def test_resolve_output_root_reuses_existing_root_when_overwriting(tmp_path):
+    input_root = tmp_path / "Series"
+    input_root.mkdir()
+    output_base = tmp_path / "Out"
+    rules = _rules(overwrite=True)
+    first = resolve_output_root(input_root, output_base, rules)
+    first.mkdir(parents=True)
+    assert resolve_output_root(input_root, output_base, rules) == first
+
+
+def test_resolve_output_root_numbers_existing_root_when_not_overwriting(tmp_path):
+    input_root = tmp_path / "Series"
+    input_root.mkdir()
+    output_base = tmp_path / "Out"
+    rules = _rules(overwrite=False)
+    first = resolve_output_root(input_root, output_base, rules)
+    first.mkdir(parents=True)
+    second = resolve_output_root(input_root, output_base, rules)
+    assert second != first
+    assert second.name.endswith("(2)")

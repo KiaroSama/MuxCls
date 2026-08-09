@@ -97,14 +97,6 @@ def same_stream_indexes(original: Sequence[StreamInfo], selected: Sequence[Strea
     return [stream.index for stream in original] == [stream.index for stream in selected]
 
 
-def default_disposition_needs_update(streams: Sequence[StreamInfo]) -> bool:
-    if not streams:
-        return False
-    if streams[0].disposition_default != 1:
-        return True
-    return any(stream.disposition_default != 0 for stream in streams[1:])
-
-
 def metadata_edits_need_remux(streams: Sequence[StreamInfo], rules: SelectionRules) -> bool:
     for stream in streams:
         target_language, target_title = metadata_values_for_stream(stream, rules)
@@ -133,10 +125,6 @@ def remux_needed_reasons(
         reasons.append("input metadata is removed")
     if not rules.keep_chapters:
         reasons.append("chapters are removed")
-    if default_disposition_needs_update(audio_keep):
-        reasons.append("audio default disposition is normalized")
-    if default_disposition_needs_update(subtitles_keep):
-        reasons.append("subtitle default disposition is normalized")
     if metadata_edits_need_remux([*audio_keep, *subtitles_keep], rules):
         reasons.append("stream metadata is edited")
 
@@ -152,7 +140,8 @@ def build_ffmpeg_command(
     audio_keep = selected_audio_streams(media, rules)
     subtitles_keep = selected_subtitle_streams(media, rules)
 
-    cmd = [FFMPEG_BIN, "-hide_banner"]
+    # -nostdin keeps FFmpeg from grabbing the console, so Ctrl+C reaches MuxCls.
+    cmd = [FFMPEG_BIN, "-hide_banner", "-nostdin"]
 
     if rules.overwrite:
         cmd.append("-y")
@@ -186,11 +175,14 @@ def build_ffmpeg_command(
 
     cmd += ["-c", "copy"]
 
-    for index in range(len(audio_keep)):
-        cmd += [f"-disposition:a:{index}", "+default" if index == 0 else "-default"]
+    # Clear every output default, then restore only the defaults the selected
+    # source streams already had. The first kept stream is never promoted just
+    # because it is first.
+    for index, stream in enumerate(audio_keep):
+        cmd += [f"-disposition:a:{index}", "+default" if stream.disposition_default else "-default"]
 
-    for index in range(len(subtitles_keep)):
-        cmd += [f"-disposition:s:{index}", "+default" if index == 0 else "-default"]
+    for index, stream in enumerate(subtitles_keep):
+        cmd += [f"-disposition:s:{index}", "+default" if stream.disposition_default else "-default"]
 
     for index, stream in enumerate(audio_keep):
         add_stream_metadata_options(cmd, f"s:a:{index}", stream, rules)
