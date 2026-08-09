@@ -1,9 +1,9 @@
-# MuxCls v1.4.2
+# MuxCls v1.5.0
 
-Version tag suggestion: `v1.4.2`
+Version tag suggestion: `v1.5.0`
 
-MuxCls v1.4.2 fixes a set of stream-handling, data-safety and process-control bugs, adds per-file progress
-reporting, and runs on Linux and macOS as well as Windows.
+MuxCls v1.5.0 adds a live progress view, fixes a set of stream-handling, data-safety and
+process-control bugs, and runs on Linux and macOS as well as Windows.
 
 MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video,
 audio, or subtitles.
@@ -44,6 +44,16 @@ audio, or subtitles.
 
 ## Added
 
+- A live progress view. On a terminal, processing draws a block that repaints in place: an
+  `Overall` bar with a files-done count and the run's elapsed time, then one row per file with
+  its own bar, percentage, size, speed, ETA and elapsed time. Files still waiting read
+  `Queued`; finished ones read `Done`, `Failed` or `Skipped`. When the list is taller than the
+  terminal it follows the file being worked on and says how many rows are hidden.
+- The percentages are real, not decorative: a remux reads FFmpeg's own reported position, the
+  standard-library copy counts the bytes it has written, and the Robocopy copy reads
+  Robocopy's own percentage.
+- With redirected output there is no cursor to move, so the run keeps printing the previous
+  one-line-per-file format. Logs and CI transcripts read exactly as before.
 - Each file prints its own size change as soon as it finishes, in addition to the run total.
 - Each file has its own elapsed timer that starts at zero and stops when that file is done,
   shown next to the elapsed time of the whole run.
@@ -54,12 +64,12 @@ audio, or subtitles.
 
 ## Changed
 
-- Updated runtime version to `1.4.2`.
+- Updated runtime version to `1.5.0`.
 - Logs are much quieter by default: UTC timestamps, `INFO` level, captured command output only
   for failures, and per-file paths relative to the run roots.
 - File copy backends moved into `muxcls/copying.py`, separating run orchestration from
   platform-specific copying.
-- The test suite grew to 82 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
+- The test suite grew to 96 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
 
 ## Requirements
 
@@ -90,7 +100,7 @@ On Linux and macOS, run `python MuxCls.py`.
 
 - No changes to output behavior, file formats, or configuration are required.
 - Output produced by earlier versions may have the default flag on the first kept track rather
-  than the track the source marked. Re-running those files with v1.4.2 reproduces the source
+  than the track the source marked. Re-running those files with v1.5.0 reproduces the source
   flags.
 - On Windows, run `.\run.ps1` from the project folder, or run `.\Install-MuxClsCommand.ps1`
   once to register the PowerShell `MuxCls` command.
