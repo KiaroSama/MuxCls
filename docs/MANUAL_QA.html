@@ -1,0 +1,994 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MuxCls — Manual QA</title>
+<style>
+:root{
+  /* Palette taken from muxcls/colors.py (the app's own ANSI truecolor values). */
+  --scan:#44DDFF; --summary:#AAFF52; --verify:#FF73E1; --note:#50BEFF;
+  --confirm:#FF9B3C; --process:#50FFCD; --done:#91FF5F; --process-done:#5AFF87;
+  --found-label:#5AFFBE; --found-value:#FFEB78; --example:#FFD750;
+  --sep:#4B82BE; --setting-label:#6ED2FF; --input-path:#46FFD2; --output-base:#FF69B4;
+  --output-root:#BEFF46; --mode:#B491FF; --audio:#78FFAA; --subtitle:#FF96DC;
+  --true:#5FFF78; --false:#FF5F5F; --failed:#FF3C48; --extra-failed:#FF5F78;
+  --size:#00AA7D; --elapsed:#CD7A2A; --log:#FFF04A; --file-red:#FF1414;
+
+  --bg:#0f1419; --bg2:#151b22; --bg3:#1b232c; --line:#26303b;
+  --fg:#e6edf3; --fg-dim:#93a1b1; --fg-faint:#6b7a8c;
+  --pass:#5FFF78; --fail:#FF3C48; --na:#93a1b1;
+  --radius:10px;
+  --font-fa:"Vazirmatn","Segoe UI","Tahoma","Iranian Sans",system-ui,sans-serif;
+  --font-en:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-code:ui-monospace,"Cascadia Mono","Consolas","SF Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--fg)}
+body{font-family:var(--font-en);line-height:1.75;font-size:15px}
+body[data-lang="fa"]{font-family:var(--font-fa);direction:rtl}
+body[data-lang="en"]{direction:ltr}
+
+code,kbd,.mono,.id{font-family:var(--font-code);direction:ltr;unicode-bidi:isolate}
+code{background:var(--bg3);border:1px solid var(--line);border-radius:5px;padding:.08em .38em;font-size:.88em;color:var(--found-value)}
+
+.layout{display:grid;grid-template-columns:280px 1fr;gap:0;min-height:100vh}
+#toc{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;background:var(--bg2);border-inline-end:1px solid var(--line);padding:18px 14px}
+#toc h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-faint);margin:0 0 10px}
+#toc a{display:block;padding:6px 10px;border-radius:7px;color:var(--fg-dim);text-decoration:none;font-size:13.5px;border-inline-start:3px solid transparent}
+#toc a:hover{background:var(--bg3);color:var(--fg)}
+#toc a.active{background:var(--bg3);color:var(--scan);border-inline-start-color:var(--scan)}
+main{padding:0 26px 90px;max-width:1180px}
+
+header.head{padding:30px 0 14px}
+h1{margin:0 0 6px;font-size:27px;color:var(--scan)}
+.sub{color:var(--fg-dim);margin:0 0 14px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.chip{background:var(--bg3);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12.5px;color:var(--fg-dim)}
+.chip b{color:var(--fg)}
+
+#bar{position:sticky;top:0;z-index:30;background:rgba(15,20,25,.97);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 0;margin-bottom:14px}
+.barrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.track{flex:1 1 220px;height:9px;border-radius:99px;background:var(--bg3);overflow:hidden;display:flex;min-width:160px}
+.track i{display:block;height:100%}
+.track .p{background:var(--pass)} .track .f{background:var(--fail)} .track .n{background:var(--na)}
+.counts{display:flex;gap:7px;flex-wrap:wrap;font-size:12.5px}
+.counts span{background:var(--bg3);border:1px solid var(--line);border-radius:7px;padding:2px 9px}
+.counts .cp{color:var(--pass)} .counts .cf{color:var(--fail)} .counts .cn{color:var(--na)} .counts .cr{color:var(--fg-dim)}
+input[type=search],select,button{font:inherit;background:var(--bg3);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 11px}
+input[type=search]{min-width:170px;flex:1 1 190px}
+button{cursor:pointer}
+button:hover{border-color:var(--scan)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--scan);outline-offset:2px}
+.danger:hover{border-color:var(--fail);color:var(--fail)}
+
+section.sec{margin:22px 0;border:1px solid var(--line);border-radius:var(--radius);background:var(--bg2);overflow:hidden;scroll-margin-top:82px}
+.sechead{display:flex;gap:12px;align-items:center;padding:13px 16px;cursor:pointer;background:var(--bg2)}
+.sechead:hover{background:var(--bg3)}
+.sechead h2{margin:0;font-size:17px;flex:1;color:var(--process)}
+.sechead .mini{width:96px;height:6px;border-radius:99px;background:var(--bg3);overflow:hidden;display:flex;flex:0 0 auto}
+.sechead .dt{font-size:12.5px;color:var(--fg-faint);min-width:56px;text-align:end}
+.caret{color:var(--fg-faint);transition:transform .18s}
+section.sec.collapsed .body{display:none}
+section.sec.collapsed .caret{transform:rotate(-90deg)}
+body[data-lang="fa"] section.sec.collapsed .caret{transform:rotate(90deg)}
+.body{padding:0 16px 16px}
+.subhead{margin:18px 0 8px;font-size:14.5px;color:var(--found-label);font-weight:600}
+.intro{color:var(--fg-dim);font-size:14px;margin:8px 0 4px}
+
+table{width:100%;border-collapse:separate;border-spacing:0 7px}
+th{text-align:start;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-faint);padding:0 12px;font-weight:600}
+td{background:var(--bg3);border-block:1px solid var(--line);padding:11px 12px;vertical-align:top;font-size:14.2px}
+td:first-child{border-inline-start:1px solid var(--line);border-start-start-radius:9px;border-end-start-radius:9px}
+td:last-child{border-inline-end:1px solid var(--line);border-start-end-radius:9px;border-end-end-radius:9px}
+tr.row[data-state="pass"] td{background:#12251a;border-color:#1f5c33}
+tr.row[data-state="fail"] td{background:#2a1417;border-color:#6b2028}
+tr.row[data-state="na"] td{background:#1a1f25;border-color:#33404d;opacity:.72}
+tr.hidden{display:none}
+.id{color:var(--example);font-size:12.5px;white-space:nowrap}
+.acts{display:flex;gap:5px}
+.acts button{padding:3px 10px;font-size:13px;line-height:1.5}
+.acts button.on[data-v="pass"]{background:var(--pass);color:#062a10;border-color:var(--pass)}
+.acts button.on[data-v="fail"]{background:var(--fail);color:#2a0509;border-color:var(--fail)}
+.acts button.on[data-v="na"]{background:var(--na);color:#10151a;border-color:var(--na)}
+.note{margin-top:8px;padding:8px 11px;border-radius:8px;font-size:13.2px;border-inline-start:3px solid}
+.note.info{background:#0e1f2b;border-color:var(--note);color:#bfe3ff}
+.note.warn{background:#2a2210;border-color:var(--confirm);color:#ffdfae}
+.note.danger{background:#2b1013;border-color:var(--failed);color:#ffc2c7}
+.setup td:first-child{color:var(--setting-label)}
+.tag{font-size:11.5px;border-radius:6px;padding:1px 7px;border:1px solid var(--line);color:var(--fg-faint);white-space:nowrap}
+
+#top{position:fixed;inset-block-end:20px;inset-inline-end:20px;z-index:40;border-radius:50%;width:42px;height:42px;display:none}
+#top.show{display:block}
+.empty{padding:26px;text-align:center;color:var(--fg-faint)}
+
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  #toc{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+  #bar{position:static}
+  main{padding:0 14px 70px}
+  table,thead,tbody,tr,td,th{display:block;width:100%}
+  thead{display:none}
+  td{border:1px solid var(--line)!important;border-radius:9px!important;margin-bottom:5px}
+  tr.row{display:block;margin-bottom:12px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+@media print{
+  #toc,#bar,#top,.acts{display:none!important}
+  section.sec.collapsed .body{display:block!important}
+  body{background:#fff;color:#000}
+  td{background:#fff;border:1px solid #999}
+  .layout{display:block}
+}
+</style>
+
+<div class="layout">
+  <nav id="toc" aria-label="Sections"><h2 id="tocTitle">Sections</h2><div id="tocLinks"></div></nav>
+  <main>
+    <header class="head">
+      <h1 id="docTitle"></h1>
+      <p class="sub" id="docSub"></p>
+      <div class="meta" id="docMeta"></div>
+    </header>
+
+    <div id="bar">
+      <div class="barrow">
+        <div class="track" aria-hidden="true"><i class="p" id="tp"></i><i class="f" id="tf"></i><i class="n" id="tn"></i></div>
+        <div class="counts">
+          <span class="cp" id="cp"></span><span class="cf" id="cf"></span>
+          <span class="cn" id="cn"></span><span class="cr" id="cr"></span>
+        </div>
+      </div>
+      <div class="barrow" style="margin-top:8px">
+        <input type="search" id="q" autocomplete="off">
+        <select id="filter"></select>
+        <button id="btnLang" type="button"></button>
+        <button id="btnExpand" type="button"></button>
+        <button id="btnReset" class="danger" type="button"></button>
+      </div>
+    </div>
+
+    <div id="out"></div>
+    <div class="empty" id="empty" hidden></div>
+  </main>
+</div>
+<button id="top" title="Top" type="button">↑</button>
+
+<script>
+/* ============================================================================
+   MuxCls - Manual QA
+   Everything below renders from ONE data model. Adding a test = adding one row.
+   All model text reaches the DOM through textContent, so the document itself
+   cannot be injected into.
+   ========================================================================= */
+
+const STORE_KEY = "muxcls.manualqa.v1";
+const LANG_KEY  = "muxcls.manualqa.lang.v1";
+
+const UI = {
+  title:   {fa:"MuxCls — سند تست دستی", en:"MuxCls — Manual QA"},
+  sub:     {fa:"هر انتظار قابل‌داوری است: یک عدد، یک متن دقیق، یا وجود/نبود یک فایل. «درست کار می‌کند» انتظار نیست.",
+            en:"Every expectation is judgeable: a number, an exact string, or the presence/absence of a file. \"works correctly\" is not an expectation."},
+  sections:{fa:"بخش‌ها", en:"Sections"},
+  search:  {fa:"جستجو در تست‌ها…", en:"Search tests…"},
+  all:     {fa:"همه", en:"All"},
+  notdone: {fa:"انجام‌نشده", en:"Not done"},
+  pass:    {fa:"قبول", en:"Pass"},
+  fail:    {fa:"رد", en:"Fail"},
+  na:      {fa:"بی‌ربط", en:"N/A"},
+  remain:  {fa:"مانده", en:"Remaining"},
+  expand:  {fa:"باز کردن همه", en:"Expand all"},
+  collapse:{fa:"بستن همه", en:"Collapse all"},
+  reset:   {fa:"پاک کردن نتایج", en:"Reset all"},
+  confirm: {fa:"همهٔ نتایج ثبت‌شده پاک شوند؟", en:"Clear every recorded result?"},
+  colAction:{fa:"عمل", en:"Action"},
+  colInput:{fa:"ورودی", en:"Input"},
+  colExpect:{fa:"انتظار", en:"Expectation"},
+  colSetting:{fa:"تنظیم", en:"Setting"},
+  colNormal:{fa:"مقدار عادی", en:"Normal value"},
+  colTest: {fa:"مقدار پیشنهادی تست", en:"Suggested test value"},
+  colWhy:  {fa:"چرا", en:"Why"},
+  langBtn: {fa:"English", en:"فارسی"},
+  none:    {fa:"چیزی پیدا نشد.", en:"Nothing matched."},
+  version: {fa:"نسخه", en:"Version"},
+  commit:  {fa:"کامیت", en:"Commit"},
+  tests:   {fa:"تست", en:"tests"},
+  secs:    {fa:"بخش", en:"sections"}
+};
+
+const META = {version:"1.4.2", commit:"dd52537"};
+
+/* ---------- Section 0: environment setup (informational, not scored) ------ */
+const SETUP = {
+  title: {fa:"۰ — آماده‌سازی محیط", en:"0 — Environment setup"},
+  intro: {fa:"قبل از شروع این‌ها را تنظیم کن. ستون «چرا» توضیح می‌دهد که بدون آن، کدام تست عملاً غیرقابل‌اجرا می‌شود.",
+          en:"Set these before testing. The \"Why\" column says which test becomes impractical without the change."},
+  rows: [
+    {s:"MUXCLS_OPERATION_TIMEOUT", n:{fa:"تنظیم‌نشده (۳ ساعت)", en:"unset (3 hours)"}, t:"5",
+     w:{fa:"سقف زمانی هر remux/کپی. با ۵ ثانیه می‌توانی مسیر timeout را روی یک فایل بزرگ واقعی ببینی بدون اینکه ۳ ساعت صبر کنی. مقدار ۰ سقف را کاملاً غیرفعال می‌کند.",
+        en:"Wall ceiling for one remux/copy. At 5 you can watch the timeout path on a real large file instead of waiting 3 hours. 0 disables the bound entirely."}},
+    {s:"MUXCLS_DEBUG", n:{fa:"تنظیم‌نشده (سطح INFO)", en:"unset (INFO level)"}, t:"1",
+     w:{fa:"لاگ کامل: خط فرمان هر دستور و خروجی دستورهای موفق. برای تست‌های بخش لاگ لازم است.",
+        en:"Verbose log: every command line plus the output of successful commands. Required by the logging tests."}},
+    {s:{fa:"پوشهٔ نمونه", en:"Sample folder"}, n:{fa:"—", en:"—"}, t:{fa:"۳ تا ۵ فایل با دو زبان صدا و چند زیرنویس", en:"3–5 files, dual audio, several subtitles"},
+     w:{fa:"بیشتر تست‌های انتخاب استریم به فایلی نیاز دارند که بیش از یک تراک صدا و چند زیرنویس با عنوان متفاوت داشته باشد.",
+        en:"Most selection tests need a file with more than one audio track and several differently-titled subtitles."}},
+    {s:{fa:"فایل کوتاه‌شده", en:"Trimmed fixture"}, n:{fa:"—", en:"—"}, t:"ffmpeg -t 45 -i SRC -map 0 -c copy DST.mkv",
+     w:{fa:"ساختار واقعی (کدک، تگ زبان، disposition، ضمیمه‌های فونت) را نگه می‌دارد ولی حجم را ~۲۰ برابر کم می‌کند؛ چرخهٔ تست کوتاه می‌شود.",
+        en:"Keeps the real structure (codecs, language tags, dispositions, font attachments) at ~1/20 the size, so the test loop stays short."}},
+    {s:{fa:"فایل خراب", en:"Broken file"}, n:{fa:"—", en:"—"}, t:"head -c 4000 real.mkv > broken.mkv",
+     w:{fa:"برای تست مسیر شکست ffprobe لازم است؛ هدر واقعی دارد ولی ناقص است.", en:"Needed for the ffprobe-failure path: a real header that is genuinely truncated."}},
+    {s:{fa:"فایل بدون ویدیو", en:"No-video file"}, n:{fa:"—", en:"—"}, t:"ffmpeg -i SRC -map 0:a:0 -c copy audio_only.mkv",
+     w:{fa:"پسوند ویدیویی دارد ولی استریم ویدیو ندارد — دقیقاً حالتی که باید رد شود.", en:"A video extension with no video stream — exactly the case that must be rejected."}},
+    {s:{fa:"بازنشانی کامل", en:"Full reset"}, n:{fa:"—", en:"—"}, t:{fa:"پوشهٔ خروجی و Logs/ را پاک کن", en:"delete the output folder and Logs/"},
+     w:{fa:"MuxCls ورودی را تغییر نمی‌دهد، پس بازنشانی یعنی حذف خروجی. هرگز پوشهٔ منبع را پاک نکن.",
+        en:"MuxCls never modifies its input, so a reset means deleting the output. Never delete the source folder."}}
+  ]
+};
+
+/* ---------------------------- Test model --------------------------------- */
+/* r(id, action, expectation, note?) - note = {kind:"info|warn|danger", fa, en} */
+const S = [
+
+{n:1, t:{fa:"راه‌اندازی و پیش‌نیازها", en:"Startup and prerequisites"}, subs:[
+ {n:1, t:{fa:"بررسی ابزارها", en:"Tool checks"}, rows:[
+  {a:{fa:"با ffmpeg و ffprobe موجود در PATH اجرا کن.", en:"Run with ffmpeg and ffprobe present in PATH."},
+   e:{fa:"سربرگ MuxCls، سپس خط «Log file: …» و پیام «This script uses ffmpeg -c copy. It does not re-encode video, audio, or subtitles.» نمایش داده می‌شود.",
+      en:"The MuxCls header appears, then a \"Log file: …\" line and \"This script uses ffmpeg -c copy. It does not re-encode video, audio, or subtitles.\""}},
+  {a:{fa:"ffmpeg را موقتاً از PATH بردار و اجرا کن.", en:"Temporarily remove ffmpeg from PATH and run."},
+   e:{fa:"دقیقاً «ERROR: ffmpeg was not found in PATH.» چاپ و برنامه با کد خروج ۱ تمام می‌شود.",
+      en:"Exactly \"ERROR: ffmpeg was not found in PATH.\" is printed and the program exits with code 1."}},
+  {a:{fa:"ffprobe را از PATH بردار (ffmpeg بماند).", en:"Remove ffprobe from PATH (keep ffmpeg)."},
+   e:{fa:"«ERROR: ffprobe was not found in PATH.» و کد خروج ۱.", en:"\"ERROR: ffprobe was not found in PATH.\" and exit code 1."}},
+  {a:{fa:"روی لینوکس/مک بدون robocopy اجرا کن.", en:"Run on Linux/macOS where robocopy does not exist."},
+   e:{fa:"هیچ خطایی دربارهٔ robocopy داده نمی‌شود؛ برنامه عادی بالا می‌آید.", en:"No robocopy error at all; the program starts normally."},
+   note:{kind:"info", fa:"robocopy فقط روی ویندوز استفاده می‌شود؛ بقیهٔ سکوها با کتابخانهٔ استاندارد کپی می‌کنند.",
+         en:"robocopy is used on Windows only; every other platform copies with the standard library."}}
+ ]},
+ {n:2, t:{fa:"لاگ اولیه", en:"Initial log"}, rows:[
+  {a:{fa:"بعد از اجرا پوشهٔ Logs/ را ببین.", en:"Look at Logs/ after a run."},
+   e:{fa:"یک فایل تازه با الگوی muxcls_YYYY-MM-DD_HH-mm-ss_UTC.log ساخته شده و فایل قبلی دست‌نخورده مانده.",
+      en:"A new file matching muxcls_YYYY-MM-DD_HH-mm-ss_UTC.log exists and the previous file is untouched."}},
+  {a:{fa:"خط اول لاگ را بخوان.", en:"Read the first log line."},
+   e:{fa:"قالب [YYYY-MM-DD HH:mm:ss UTC] [INFO] [logsetup] و شامل نسخه، نسخهٔ پایتون، سیستم‌عامل و مسیر لاگ است.",
+      en:"Format [YYYY-MM-DD HH:mm:ss UTC] [INFO] [logsetup] containing the version, Python version, OS and log path."}},
+  {a:{fa:"ساعت لاگ را با ساعت محلی مقایسه کن (اگر منطقهٔ زمانی‌ات UTC نیست).", en:"Compare the log clock with local time (if your timezone is not UTC)."},
+   e:{fa:"زمان لاگ UTC است، نه محلی.", en:"The log time is UTC, not local."}},
+  {a:{fa:"پوشهٔ Logs را فقط‌خواندنی کن و اجرا کن.", en:"Make the Logs folder read-only and run."},
+   e:{fa:"«Logging disabled: …» چاپ می‌شود و برنامه ادامه می‌دهد — کرش نمی‌کند.",
+      en:"\"Logging disabled: …\" is printed and the program continues — it does not crash."}}
+ ]}
+]},
+
+{n:2, t:{fa:"مسیر ورودی و کشف فایل", en:"Input path and discovery"}, subs:[
+ {n:1, t:{fa:"پذیرش مسیر", en:"Path acceptance"}, rows:[
+  {a:{fa:"مسیر پوشه را با drag & drop وارد کن (با گیومه).", en:"Drag & drop a folder path (it arrives quoted)."},
+   e:{fa:"گیومه‌ها حذف می‌شوند و مسیر پذیرفته می‌شود.", en:"The quotes are stripped and the path is accepted."}},
+  {a:{fa:"Enter خالی بزن.", en:"Press Enter on an empty prompt."},
+   e:{fa:"«Path cannot be empty.» و دوباره سؤال می‌پرسد؛ خارج نمی‌شود.", en:"\"Path cannot be empty.\" and it asks again; it does not exit."}},
+  {a:{fa:"مسیری که وجود ندارد بده.", en:"Give a path that does not exist."},
+   e:{fa:"«Path does not exist: <path>» و دوباره سؤال می‌پرسد.", en:"\"Path does not exist: <path>\" and it asks again."}},
+  {a:{fa:"در اولین سؤال مسیر، «0» بزن.", en:"Type \"0\" at the first path prompt."},
+   e:{fa:"«Back is not available here.» — چون back در اولین قدم مجاز نیست.", en:"\"Back is not available here.\" — back is not allowed at the first step."}},
+  {a:{fa:"«quit» (یا q یا exit) بزن.", en:"Type \"quit\" (or q, or exit)."},
+   e:{fa:"«Exited.» و کد خروج ۰.", en:"\"Exited.\" and exit code 0."}},
+  {a:{fa:"مسیر را به‌عنوان آرگومان خط فرمان بده.", en:"Pass the path as a command-line argument."},
+   e:{fa:"«Input from launcher/drag-drop: <path>» چاپ می‌شود و سؤال مسیر پرسیده نمی‌شود.",
+      en:"\"Input from launcher/drag-drop: <path>\" is printed and the path prompt is skipped."}},
+  {a:{fa:"آرگومانی بده که وجود ندارد.", en:"Pass an argument that does not exist."},
+   e:{fa:"«Path does not exist: …» و سپس سؤال مسیر پرسیده می‌شود — برنامه نمی‌میرد.",
+      en:"\"Path does not exist: …\" then the path prompt appears — the program does not die."}}
+ ]},
+ {n:2, t:{fa:"کشف فایل‌ها", en:"File discovery"}, rows:[
+  {a:{fa:"پوشه‌ای با زیرپوشه‌های تودرتو بده.", en:"Give a folder with nested subfolders."},
+   e:{fa:"«Found N video file(s).» که N شامل فایل‌های زیرپوشه‌ها هم هست.", en:"\"Found N video file(s).\" where N includes files in subfolders."}},
+  {a:{fa:"پوشه‌ای فقط با فایل‌های .txt و .jpg بده.", en:"Give a folder containing only .txt and .jpg files."},
+   e:{fa:"«No supported video files found.» + فهرست پسوندهای پشتیبانی‌شده + «Other file extensions found: …» و خروج با کد ۱.",
+      en:"\"No supported video files found.\" + the supported-extension list + \"Other file extensions found: …\" then exit code 1."}},
+  {a:{fa:"فایلی با پسوند بزرگ‌حروف (.MKV) بگذار.", en:"Include a file with an upper-case extension (.MKV)."},
+   e:{fa:"پیدا می‌شود — مقایسهٔ پسوند حساس به بزرگی/کوچکی نیست.", en:"It is found — the extension comparison is case-insensitive."}},
+  {a:{fa:"فایلی به نام X.muxcls-partial.mkv در پوشه بگذار.", en:"Put a file named X.muxcls-partial.mkv in the folder."},
+   e:{fa:"در شمارش «Found N» نمی‌آید و اسکن نمی‌شود.", en:"It is not counted in \"Found N\" and is not scanned."},
+   note:{kind:"info", fa:"این نام یعنی «در حال نوشتن»؛ فقط بعد از kill سخت باقی می‌ماند و هرگز ورودی معتبر نیست.",
+         en:"That name means work-in-progress; it only survives a hard kill and is never valid input."}},
+  {a:{fa:"یک تک‌فایل ویدیویی (نه پوشه) بده.", en:"Give a single video file (not a folder)."},
+   e:{fa:"دقیقاً همان یک فایل پردازش می‌شود.", en:"Exactly that one file is processed."}},
+  {a:{fa:"یک تک‌فایل غیرویدیویی (مثلاً .txt) بده.", en:"Give a single non-video file (e.g. .txt)."},
+   e:{fa:"«No supported video files found.» و خروج با کد ۱.", en:"\"No supported video files found.\" and exit code 1."}}
+ ]}
+]},
+
+{n:3, t:{fa:"اسکن و شکست probe", en:"Scanning and probe failures"}, subs:[
+ {n:1, t:{fa:"اسکن سالم", en:"Healthy scan"}, rows:[
+  {a:{fa:"پوشهٔ سالم را اسکن کن.", en:"Scan a healthy folder."},
+   e:{fa:"برای هر فایل یک خط «[i/N] Scanning: <filename>» چاپ می‌شود.", en:"One \"[i/N] Scanning: <filename>\" line per file."}},
+  {a:{fa:"گزارش اسکن را ببین.", en:"Look at the scan report."},
+   e:{fa:"برای هر فایل بخش Audio و Subtitles با index، lang، title، codec، channels، default و size.",
+      en:"Per file, an Audio and Subtitles block with index, lang, title, codec, channels, default and size."}},
+  {a:{fa:"فایلی بدون تگ زبان اسکن کن.", en:"Scan a file with no language tag."},
+   e:{fa:"زبان به‌صورت *uknown نمایش داده می‌شود.", en:"The language shows as *uknown."},
+   note:{kind:"info", fa:"املای *uknown عمداً همین است و در کد ثابت است؛ باگ گزارش نکن.",
+         en:"The *uknown spelling is deliberate and fixed in the code; do not file it as a bug."}}
+ ]},
+ {n:2, t:{fa:"شکست probe", en:"Probe failure"}, rows:[
+  {a:{fa:"یک فایل خراب کنار فایل‌های سالم بگذار و اسکن کن.", en:"Put a broken file beside healthy ones and scan."},
+   e:{fa:"«[PROBE FAILED] <path>» و بعد «N file(s) could not be read by ffprobe:» با فهرست مسیرها.",
+      en:"\"[PROBE FAILED] <path>\" then \"N file(s) could not be read by ffprobe:\" with the paths listed."}},
+  {a:{fa:"در سؤال ادامه، Enter بزن (پیش‌فرض).", en:"Press Enter at the continue prompt (the default)."},
+   e:{fa:"پیش‌فرض «n» است: «Stopped. Fix or remove those files and run MuxCls again.» و کد خروج ۱.",
+      en:"The default is \"n\": \"Stopped. Fix or remove those files and run MuxCls again.\" and exit code 1."},
+   note:{kind:"warn", fa:"اگر Enter کار را ادامه دهد، باگ است — پیش‌فرض باید محافظه‌کارانه باشد.",
+         en:"If Enter continues the run, that is the bug — the default must be the safe one."}},
+  {a:{fa:"«y» بزن و تا پایان برو.", en:"Answer \"y\" and run to the end."},
+   e:{fa:"فایل خراب در Processing به‌صورت «[i/N] FAILED to scan: <name>» می‌آید و در Total و Failed شمرده می‌شود.",
+      en:"The broken file appears in Processing as \"[i/N] FAILED to scan: <name>\" and is counted in Total and Failed."}},
+  {a:{fa:"جمع اعداد خلاصه را بررسی کن.", en:"Check the summary arithmetic."},
+   e:{fa:"Total = OK + Skipped + No audio match + Failed. هیچ فایلی گم نمی‌شود.",
+      en:"Total = OK + Skipped + No audio match + Failed. No file goes missing."},
+   note:{kind:"danger", fa:"اگر فایل خرابی بی‌صدا از شمارش حذف شود، این یک باگ داده‌ای است نه ظاهری: کاربر فکر می‌کند همه‌چیز پردازش شده.",
+         en:"A broken file vanishing from the counts is a data bug, not cosmetic: the user believes everything was processed."}},
+  {a:{fa:"همهٔ فایل‌ها را خراب کن و اسکن کن.", en:"Break every file and scan."},
+   e:{fa:"«No files could be scanned successfully.» و کد خروج ۱.", en:"\"No files could be scanned successfully.\" and exit code 1."}}
+ ]}
+]},
+
+{n:4, t:{fa:"انتخاب صدا", en:"Audio selection"}, subs:[
+ {n:1, t:{fa:"در دسترس بودن منو", en:"Menu reachability"}, rows:[
+  {a:{fa:"مجموعه‌ای با دو زبان صدا بده.", en:"Give a set with two audio languages."},
+   e:{fa:"اول منوی «Choose Streams to Keep» با گزینه‌های ۱ (advanced) و ۲ (exact indexes) می‌آید.",
+      en:"The \"Choose Streams to Keep\" menu appears first with 1 (advanced) and 2 (exact indexes)."}},
+  {a:{fa:"مجموعه‌ای که همهٔ فایل‌هایش فقط یک تراک صدا دارند بده.", en:"Give a set where every file has exactly one audio track."},
+   e:{fa:"منوی حالت صدا همچنان نمایش داده می‌شود و گزینهٔ ۵ (remove all audio) قابل انتخاب است.",
+      en:"The audio-mode menu is still shown and option 5 (remove all audio) is selectable."},
+   note:{kind:"warn", fa:"اگر منو رد شود، تنها راه «حذف کل صدا» از دست می‌رود.",
+         en:"If the menu is skipped, the only route to \"remove all audio\" disappears."}},
+  {a:{fa:"مجموعه‌ای که هیچ فایلی صدا ندارد بده.", en:"Give a set where nothing has audio."},
+   e:{fa:"«No audio streams found; selecting no audio.» و منوی صدا پرسیده نمی‌شود.",
+      en:"\"No audio streams found; selecting no audio.\" and the audio menu is skipped."}}
+ ]},
+ {n:2, t:{fa:"حالت‌های انتخاب", en:"Selection modes"}, rows:[
+  {a:{fa:"۱ (by language) و بعد «jpn» بزن.", en:"Choose 1 (by language) then \"jpn\"."},
+   e:{fa:"پیش‌نمایش «Selected audio streams» با «files matched=N/N» و فقط استریم‌های jpn.",
+      en:"A \"Selected audio streams\" preview with \"files matched=N/N\" and only jpn streams."}},
+  {a:{fa:"۲ (by title) و متنی که در هیچ عنوانی نیست بزن.", en:"Choose 2 (by title) with text present in no title."},
+   e:{fa:"«none matched» و بعداً همهٔ فایل‌ها NO_AUDIO_MATCH می‌شوند.",
+      en:"\"none matched\", and later every file becomes NO_AUDIO_MATCH."}},
+  {a:{fa:"۳ (by index) و ایندکسی که در اسکن نبود بزن.", en:"Choose 3 (by index) with an index absent from the scan."},
+   e:{fa:"«These indexes were not found in the scan: …» و سؤال «Keep these indexes anyway?» با پیش‌فرض n.",
+      en:"\"These indexes were not found in the scan: …\" and \"Keep these indexes anyway?\" defaulting to n."}},
+  {a:{fa:"۴ (keep all audio) بزن.", en:"Choose 4 (keep all audio)."},
+   e:{fa:"مرحلهٔ جزئیات پرسیده نمی‌شود و مستقیم به منوی زیرنویس می‌رود.",
+      en:"No detail step is asked; it goes straight to the subtitle menu."}},
+  {a:{fa:"۵ (remove all audio) بزن.", en:"Choose 5 (remove all audio)."},
+   e:{fa:"خروجی هیچ استریم صدایی ندارد و هیچ فایلی NO_AUDIO_MATCH نمی‌شود.",
+      en:"The output has no audio stream and no file becomes NO_AUDIO_MATCH."},
+   note:{kind:"info", fa:"«حذف کل صدا» تنها حالتی است که اجازه دارد بدون صدا ادامه دهد.",
+         en:"Explicit \"remove all audio\" is the one mode allowed to continue without audio."}},
+  {a:{fa:"عدد نامعتبر (مثلاً ۹) بزن.", en:"Enter an invalid number (e.g. 9)."},
+   e:{fa:"«Invalid choice. Valid options: 1, 2, 3, 4, 5» و دوباره می‌پرسد.",
+      en:"\"Invalid choice. Valid options: 1, 2, 3, 4, 5\" and it asks again."}},
+  {a:{fa:"در منوی صدا «0» بزن.", en:"Type \"0\" in the audio menu."},
+   e:{fa:"«Back. Returning to input path.» و به سؤال مسیر برمی‌گردد.", en:"\"Back. Returning to input path.\" and it returns to the path prompt."}}
+ ]},
+ {n:3, t:{fa:"عدم تطابق صدا", en:"No audio match"}, rows:[
+  {a:{fa:"jpn را انتخاب کن ولی فایلی فقط با صدای eng در مجموعه باشد.", en:"Select jpn while one file has only eng audio."},
+   e:{fa:"«[i/N] SKIP no matching audio selected: <rel>» و شمارندهٔ No audio match یکی زیاد می‌شود.",
+      en:"\"[i/N] SKIP no matching audio selected: <rel>\" and the No audio match counter increments."}},
+  {a:{fa:"فایلی که اصلاً صدا ندارد در همان اجرا بگذار (حالت صدا ≠ ۵).", en:"Include a file with zero audio streams (audio mode ≠ 5)."},
+   e:{fa:"آن هم NO_AUDIO_MATCH می‌شود و خروجی بی‌صدا تولید نمی‌شود.",
+      en:"It is also NO_AUDIO_MATCH; no silent output is produced."},
+   note:{kind:"danger", fa:"اگر این فایل بی‌صدا کپی/remux شود، کاربر یک ویدیوی بی‌صدا می‌گیرد و متوجه نمی‌شود.",
+         en:"If that file is copied/remuxed anyway, the user silently gets a video with no audio."}}
+ ]}
+]},
+
+{n:5, t:{fa:"زیرنویس و ضمیمه‌ها", en:"Subtitles and attachments"}, subs:[
+ {n:1, t:{fa:"منوی زیرنویس", en:"Subtitle menu"}, rows:[
+  {a:{fa:"۱ (keep all subtitles) بزن.", en:"Choose 1 (keep all subtitles)."},
+   e:{fa:"سؤال «Keep MKV font attachments?» با پیش‌فرض Y پرسیده می‌شود.", en:"\"Keep MKV font attachments?\" is asked, defaulting to Y."}},
+  {a:{fa:"۳ (by title) و متن «s&s» بزن (اگر چنین عنوانی داری).", en:"Choose 3 (by title) with \"s&s\" (if such a title exists)."},
+   e:{fa:"تطبیق حساس به بزرگی/کوچکی نیست و فقط همان زیرنویس نگه داشته می‌شود.",
+      en:"Matching is case-insensitive and only that subtitle is kept."}},
+  {a:{fa:"۵ (remove all subtitles) بزن.", en:"Choose 5 (remove all subtitles)."},
+   e:{fa:"«Subtitle mode is remove-all, so font attachments will also be removed.» و سؤال ضمیمه پرسیده نمی‌شود.",
+      en:"\"Subtitle mode is remove-all, so font attachments will also be removed.\" and the attachment question is not asked."},
+   note:{kind:"info", fa:"این عمدی است: فونت‌ها فقط برای زیرنویس ASS/SSA لازم‌اند.",
+         en:"Deliberate: the fonts only exist to render ASS/SSA subtitles."}},
+  {a:{fa:"مجموعه‌ای بدون هیچ زیرنویسی بده.", en:"Give a set with no subtitles at all."},
+   e:{fa:"«No subtitle streams found; skipping subtitle selection.» و منو پرسیده نمی‌شود.",
+      en:"\"No subtitle streams found; skipping subtitle selection.\" and the menu is skipped."}}
+ ]},
+ {n:2, t:{fa:"ضمیمه‌ها", en:"Attachments"}, rows:[
+  {a:{fa:"ضمیمه‌ها را نگه دار و خروجی را probe کن.", en:"Keep attachments and probe the output."},
+   e:{fa:"تعداد استریم‌های attachment در خروجی با ورودی برابر است.", en:"The attachment stream count matches the input."}},
+  {a:{fa:"ضمیمه‌ها را حذف کن (n).", en:"Drop attachments (answer n)."},
+   e:{fa:"خروجی هیچ استریم attachment ندارد و «attachments: no» در خط پردازش دیده می‌شود.",
+      en:"The output has no attachment stream and the processing line shows \"attachments: no\"."}}
+ ]}
+]},
+
+{n:6, t:{fa:"پرچم default (پیش‌فرض تراک)", en:"Default track flags"}, subs:[
+ {n:1, t:{fa:"حفظ disposition", en:"Disposition preservation"}, rows:[
+  {a:{fa:"فایلی که default صدایش روی تراک دوم است پیدا کن (در گزارش اسکن default=yes روی تراک دوم).",
+      en:"Find a file whose audio default sits on the second track (scan report shows default=yes there)."},
+   e:{fa:"با «keep all» هیچ دلیل remux وجود ندارد: پیام «Copying unchanged» می‌آید، نه «Remuxing».",
+      en:"With \"keep all\" there is no remux reason: it says \"Copying unchanged\", not \"Remuxing\"."},
+   note:{kind:"warn", fa:"اگر اینجا remux شود یعنی برنامه دارد فقط برای «نرمال‌سازی» پرچم default فایل را بازنویسی می‌کند — همان باگی که رفع شده.",
+         en:"A remux here means the app is rewriting the file just to \"normalize\" the default flag — the fixed bug."}},
+  {a:{fa:"همان خروجی را probe کن و disposition صدا را ببین.", en:"Probe that output and read the audio dispositions."},
+   e:{fa:"دقیقاً مثل ورودی: تراک اول default=0 و تراک دوم default=1.",
+      en:"Identical to the input: first track default=0, second default=1."}},
+  {a:{fa:"خروجی را با ورودی مقایسهٔ بایتی کن.", en:"Byte-compare the output against the input."},
+   e:{fa:"کاملاً یکسان‌اند (کپی بدون تغییر).", en:"They are identical (an unchanged copy)."}},
+  {a:{fa:"فقط زبانی را نگه دار که در ورودی default نبوده.", en:"Keep only the language that was NOT default in the input."},
+   e:{fa:"در خروجی همان تراک همچنان default=0 است — به‌زور default نمی‌شود.",
+      en:"In the output that track is still default=0 — it is not promoted."}},
+  {a:{fa:"زیرنویسی را نگه دار که در ورودی default=1 بوده.", en:"Keep a subtitle that was default=1 in the input."},
+   e:{fa:"در خروجی هم default=1 می‌ماند.", en:"It stays default=1 in the output."}}
+ ]}
+]},
+
+{n:7, t:{fa:"ویرایش متادیتا", en:"Metadata edits"}, subs:[
+ {n:1, t:{fa:"منوی ویرایش", en:"Edit menu"}, rows:[
+  {a:{fa:"در سؤال «Edit output stream metadata?» جواب n بده.", en:"Answer n to \"Edit output stream metadata?\""},
+   e:{fa:"هیچ ویرایشی ثبت نمی‌شود و در Confirm Settings مقدار «Metadata edits: none» است.",
+      en:"No edit is recorded and Confirm Settings shows \"Metadata edits: none\"."}},
+  {a:{fa:"y بده و گزینهٔ ۱ (زبان صدا بر اساس زبان فعلی) را انتخاب کن.", en:"Answer y and pick option 1 (audio language by current language)."},
+   e:{fa:"فهرست زبان‌های موجود چاپ می‌شود و بعد از ثبت، «Added metadata edit: audio languages=… -> language=…» می‌آید.",
+      en:"The available languages are listed, then \"Added metadata edit: audio languages=… -> language=…\" appears."}},
+  {a:{fa:"گزینهٔ ۷ (clear metadata edits) را بزن.", en:"Pick option 7 (clear metadata edits)."},
+   e:{fa:"«Metadata edits cleared.» و فهرست ویرایش‌ها خالی می‌شود.", en:"\"Metadata edits cleared.\" and the edit list empties."}},
+  {a:{fa:"ویرایش زبان روی یک فایل اعمال کن و خروجی را probe کن.", en:"Apply a language edit and probe the output."},
+   e:{fa:"تگ زبان استریم مقصد تغییر کرده و فایل ورودی دست‌نخورده است.",
+      en:"The target stream's language tag changed and the input file is untouched."},
+   note:{kind:"info", fa:"ویرایش فقط روی استریم‌های نگه‌داشته‌شدهٔ خروجی اعمال می‌شود؛ منبع هرگز تغییر نمی‌کند.",
+         en:"Edits apply only to kept output streams; the source is never modified."}},
+  {a:{fa:"ویرایشی ثبت کن که مقدار فعلی را عوض نمی‌کند (همان زبان قبلی).", en:"Record an edit that changes nothing (same language as now)."},
+   e:{fa:"هیچ remux اضافه‌ای فقط به‌خاطر این ویرایش رخ نمی‌دهد.", en:"No extra remux is triggered by that edit alone."}}
+ ]}
+]},
+
+{n:8, t:{fa:"پوشهٔ خروجی و نام‌گذاری", en:"Output folder and naming"}, subs:[
+ {n:1, t:{fa:"محافظت از ورودی", en:"Input protection"}, rows:[
+  {a:{fa:"در حالت پوشه، مسیر خروجی را دقیقاً همان پوشهٔ ورودی بده.", en:"In folder mode, give the input folder itself as output."},
+   e:{fa:"«The output folder cannot be the input folder itself.» + «Otherwise this run's output becomes the next run's input.» و دوباره می‌پرسد.",
+      en:"\"The output folder cannot be the input folder itself.\" + \"Otherwise this run's output becomes the next run's input.\" then it asks again."}},
+  {a:{fa:"مسیر خروجی را زیرپوشه‌ای داخل ورودی بده.", en:"Give a subfolder inside the input as output."},
+   e:{fa:"«The output folder cannot be inside the input folder.» و دوباره می‌پرسد.",
+      en:"\"The output folder cannot be inside the input folder.\" and it asks again."},
+   note:{kind:"danger", fa:"اگر پذیرفته شود، اجرای بعدی خروجی را به‌عنوان ورودی می‌خواند و کتابخانه را آلوده می‌کند.",
+         en:"If accepted, the next run reads the output as input and pollutes the library."}},
+  {a:{fa:"روی ویندوز همان مسیر را با بزرگی/کوچکی متفاوت بده.", en:"On Windows, give the same path with different casing."},
+   e:{fa:"باز هم رد می‌شود — مقایسه روی ویندوز حساس به بزرگی/کوچکی نیست.",
+      en:"Still rejected — path comparison on Windows is case-insensitive."}},
+  {a:{fa:"در حالت تک‌فایل، خروجی را کنار همان فایل بده.", en:"In single-file mode, put the output beside the input file."},
+   e:{fa:"پذیرفته می‌شود؛ این محدودیت فقط برای حالت پوشه است.", en:"Accepted; the restriction applies to folder mode only."}}
+ ]},
+ {n:2, t:{fa:"اعتبارسنجی مسیر", en:"Path validation"}, rows:[
+  {a:{fa:"Enter خالی بزن.", en:"Press Enter with no input."},
+   e:{fa:"«Using input parent folder: <abs path>» و پوشهٔ والدِ ورودی انتخاب می‌شود.",
+      en:"\"Using input parent folder: <abs path>\" and the input's parent is used."}},
+  {a:{fa:"«y» یا «yes» بزن.", en:"Type \"y\" or \"yes\"."},
+   e:{fa:"«Please enter a folder path, or press Enter to use the input parent folder.»",
+      en:"\"Please enter a folder path, or press Enter to use the input parent folder.\""}},
+  {a:{fa:"مسیری با پسوند ویدیویی بده (out.mkv).", en:"Give a path with a video extension (out.mkv)."},
+   e:{fa:"«Output path must be a folder, not a media file name.»", en:"\"Output path must be a folder, not a media file name.\""}},
+  {a:{fa:"مسیر یک فایل موجود (غیرپوشه) بده.", en:"Give an existing file (not a folder)."},
+   e:{fa:"«Output path exists but is not a folder: <path>»", en:"\"Output path exists but is not a folder: <path>\""}},
+  {a:{fa:"مسیر نسبی بده (مثلاً out).", en:"Give a relative path (e.g. out)."},
+   e:{fa:"«Relative output folder will resolve to: <abs>» و سؤال تأیید با پیش‌فرض n.",
+      en:"\"Relative output folder will resolve to: <abs>\" and a confirmation defaulting to n."}}
+ ]},
+ {n:3, t:{fa:"نام پوشه و بازنویسی", en:"Folder naming and overwrite"}, rows:[
+  {a:{fa:"با jpn + همهٔ زیرنویس‌ها اجرا کن و نام پوشهٔ خروجی را ببین.", en:"Run with jpn + all subtitles and read the output folder name."},
+   e:{fa:"نام به شکل «<InputName> [JA Audio + All Subs]» است (jpn به JA نگاشت می‌شود).",
+      en:"The name reads \"<InputName> [JA Audio + All Subs]\" (jpn maps to JA)."}},
+  {a:{fa:"دو بار پشت سر هم با Overwrite = n اجرا کن.", en:"Run twice with Overwrite = n."},
+   e:{fa:"بار دوم پوشهٔ «… (2)» ساخته می‌شود و پوشهٔ اول دست‌نخورده می‌ماند.",
+      en:"The second run creates \"… (2)\" and the first folder is untouched."}},
+  {a:{fa:"سه بار پشت سر هم با Overwrite = y اجرا کن.", en:"Run three times with Overwrite = y."},
+   e:{fa:"فقط یک پوشهٔ خروجی وجود دارد؛ هیچ «(2)» ساخته نمی‌شود.",
+      en:"Exactly one output folder exists; no \"(2)\" is created."}},
+  {a:{fa:"نام ورودی شامل کاراکترهای غیرمجاز ویندوز باشد.", en:"Use an input name containing Windows-illegal characters."},
+   e:{fa:"در نام خروجی با «-» جایگزین می‌شوند و پوشه ساخته می‌شود.",
+      en:"They are replaced with \"-\" in the output name and the folder is created."}}
+ ]}
+]},
+
+{n:9, t:{fa:"تصمیم remux در برابر کپی", en:"Remux vs copy decision"}, subs:[
+ {n:1, t:{fa:"مسیر کپی بدون تغییر", en:"Copy-unchanged path"}, rows:[
+  {a:{fa:"همه‌چیز را نگه دار (صدا، زیرنویس، ضمیمه، متادیتا، چپترها).", en:"Keep everything (audio, subtitles, attachments, metadata, chapters)."},
+   e:{fa:"«Copying unchanged» + خط «no remux needed»؛ ffmpeg اجرا نمی‌شود.",
+      en:"\"Copying unchanged\" plus a \"no remux needed\" line; ffmpeg does not run."}},
+  {a:{fa:"اندازهٔ خروجی را ببین.", en:"Check the output size."},
+   e:{fa:"خط «size … -> … (0.00 KB)» یعنی تفاوت صفر.", en:"The \"size … -> … (0.00 KB)\" line shows a zero delta."}},
+  {a:{fa:"شمارندهٔ خلاصه را ببین.", en:"Check the summary counters."},
+   e:{fa:"Copied unchanged برابر تعداد فایل‌ها و Remuxed برابر ۰ است.",
+      en:"Copied unchanged equals the file count and Remuxed is 0."}}
+ ]},
+ {n:2, t:{fa:"مسیر remux", en:"Remux path"}, rows:[
+  {a:{fa:"فقط یک زبان صدا را نگه دار.", en:"Keep only one audio language."},
+   e:{fa:"«Remuxing» + خط «audio kept: N | subtitles kept: M | attachments: yes/no».",
+      en:"\"Remuxing\" plus \"audio kept: N | subtitles kept: M | attachments: yes/no\"."}},
+  {a:{fa:"«Keep chapters?» را n بده و بقیه را نگه دار.", en:"Answer n to \"Keep chapters?\" and keep the rest."},
+   e:{fa:"remux انجام می‌شود (حذف چپتر خودش یک دلیل remux است).",
+      en:"A remux happens (dropping chapters is itself a remux reason)."}},
+  {a:{fa:"«Keep input metadata?» را n بده.", en:"Answer n to \"Keep input metadata?\""},
+   e:{fa:"remux انجام می‌شود و متادیتای کانتینر در خروجی نیست.",
+      en:"A remux happens and the container metadata is gone from the output."}}
+ ]}
+]},
+
+{n:10, t:{fa:"ایمنی خروجی: فایل ناقص", en:"Output safety: partial files"}, subs:[
+ {n:1, t:{fa:"شکست remux", en:"Failed remux"}, rows:[
+  {a:{fa:"MUXCLS_OPERATION_TIMEOUT=5 بگذار و یک فایل بزرگ را remux کن.",
+      en:"Set MUXCLS_OPERATION_TIMEOUT=5 and remux a large file."},
+   e:{fa:"«FAILED» چاپ می‌شود و شمارندهٔ Failed زیاد می‌شود.", en:"\"FAILED\" is printed and the Failed counter increments."}},
+  {a:{fa:"بلافاصله پوشهٔ خروجی را ببین.", en:"Immediately inspect the output folder."},
+   e:{fa:"هیچ فایلی با نام *.muxcls-partial.* و هیچ خروجی ناقصی وجود ندارد.",
+      en:"No *.muxcls-partial.* file and no partial output exist."},
+   note:{kind:"danger", fa:"باقی‌ماندن فایل ناقص یعنی اجرای بعدی ممکن است آن را «خروجی سالم» بپندارد.",
+         en:"A leftover partial means a later run may treat it as a finished output."}},
+  {a:{fa:"یک خروجی سالم از قبل بساز، بعد با Overwrite=y و timeout=5 دوباره اجرا کن.",
+      en:"Produce a good output first, then re-run with Overwrite=y and timeout=5."},
+   e:{fa:"remux شکست می‌خورد ولی فایل خروجی قبلی دست‌نخورده و کامل باقی می‌ماند.",
+      en:"The remux fails but the previous output file remains intact and complete."}},
+  {a:{fa:"در میانهٔ remux یک فایل بزرگ Ctrl+C بزن.", en:"Press Ctrl+C in the middle of remuxing a large file."},
+   e:{fa:"«Cancelled by user.»، کد خروج ۱۳۰، هیچ پروسهٔ ffmpeg زنده‌ای نمی‌ماند و فایل ناقصی باقی نمی‌ماند.",
+      en:"\"Cancelled by user.\", exit code 130, no ffmpeg process survives, and no partial file remains."}}
+ ]},
+ {n:2, t:{fa:"شکست کپی", en:"Failed copy"}, rows:[
+  {a:{fa:"در مسیر «کپی بدون تغییر» با یک خروجی موجود، اجرا را وسط کار Ctrl+C کن.",
+      en:"In the copy-unchanged path with an existing output, Ctrl+C mid-copy."},
+   e:{fa:"فایل خروجی قبلی همچنان کامل و قابل‌پخش است.", en:"The previous output file is still complete and playable."}},
+  {a:{fa:"روی ویندوز بعد از این کار، پوشهٔ خروجی را ببین.", en:"On Windows, inspect the output folder afterwards."},
+   e:{fa:"هیچ پوشه‌ای با نام «.muxcls-partial-…» باقی نمانده.", en:"No \".muxcls-partial-…\" folder remains."}}
+ ]}
+]},
+
+{n:11, t:{fa:"فایل‌های غیرویدیویی", en:"Non-video files"}, subs:[
+ {n:1, t:{fa:"کپی جانبی", en:"Extra-file copy"}, rows:[
+  {a:{fa:"پوشه‌ای با .ass، .srt و .jpg بده و «Copy non-video files» را y بگذار.",
+      en:"Give a folder with .ass, .srt and .jpg and answer y to \"Copy non-video files\"."},
+   e:{fa:"«Extra files copied: N» با همان تعداد و ساختار پوشه‌ها در خروجی حفظ شده.",
+      en:"\"Extra files copied: N\" matches the count and the folder structure is mirrored."}},
+  {a:{fa:"همان اجرا را با «Copy non-video files» = n تکرار کن.", en:"Repeat with \"Copy non-video files\" = n."},
+   e:{fa:"«Extra files copied: 0» و هیچ فایل غیرویدیویی در خروجی نیست.",
+      en:"\"Extra files copied: 0\" and no non-video file is in the output."}},
+  {a:{fa:"محتوای فایل جانبی کپی‌شده را با منبع مقایسه کن.", en:"Compare a copied extra file with its source."},
+   e:{fa:"بایت‌به‌بایت یکسان است.", en:"Byte-for-byte identical."}}
+ ]},
+ {n:2, t:{fa:"بازنویسی فایل جانبی", en:"Extra-file overwrite"}, rows:[
+  {a:{fa:"در خروجی یک .srt با همان نام ولی محتوای متفاوت و همان اندازه/زمان بساز، بعد با Overwrite=y اجرا کن.",
+      en:"Put a same-name .srt in the output with different content but identical size and timestamp, then run with Overwrite=y."},
+   e:{fa:"محتوای مقصد با منبع جایگزین می‌شود.", en:"The destination content is replaced by the source."},
+   note:{kind:"warn", fa:"robocopy چنین مقصدی را «یکسان» می‌داند و رد می‌کند؛ اگر محتوا عوض نشد باگ است.",
+         en:"robocopy considers such a destination identical and skips it; unchanged content here is the bug."}},
+  {a:{fa:"همان سناریو با Overwrite=n.", en:"Same scenario with Overwrite=n."},
+   e:{fa:"«Extra files skipped» یکی زیاد می‌شود و مقصد دست‌نخورده می‌ماند.",
+      en:"\"Extra files skipped\" increments and the destination is untouched."}},
+  {a:{fa:"مقصدی با زمان جدیدتر از منبع بگذار و با Overwrite=y اجرا کن.",
+      en:"Give the destination a newer timestamp than the source and run with Overwrite=y."},
+   e:{fa:"باز هم با محتوای منبع جایگزین می‌شود.", en:"It is still replaced with the source content."}}
+ ]}
+]},
+
+{n:12, t:{fa:"خلاصه، حجم و زمان", en:"Summary, size and time"}, subs:[
+ {n:1, t:{fa:"گزارش هر فایل", en:"Per-file reporting"}, rows:[
+  {a:{fa:"در حین پردازش خط پیشرفت را نگاه کن (در ترمینال واقعی، نه خروجی هدایت‌شده).",
+      en:"Watch the progress line during processing (in a real terminal, not redirected output)."},
+   e:{fa:"«Elapsed HH:MM:SS | Total HH:MM:SS»؛ عدد اول با هر فایل از صفر شروع می‌شود، دومی پیوسته بالا می‌رود.",
+      en:"\"Elapsed HH:MM:SS | Total HH:MM:SS\"; the first resets to zero per file, the second keeps climbing."}},
+  {a:{fa:"خروجی را به فایل هدایت کن (> out.txt) و فایل را ببین.", en:"Redirect output to a file (> out.txt) and read it."},
+   e:{fa:"هیچ خط پیشرفتی در فایل نیست — چون مقصد ترمینال نیست.",
+      en:"No progress line appears in the file — the destination is not a terminal."}},
+  {a:{fa:"بعد از اتمام هر فایل خط حجم را ببین.", en:"Read the size line after each file finishes."},
+   e:{fa:"«size <before> -> <after> (<delta>)» بلافاصله بعد از همان فایل، نه فقط در انتها.",
+      en:"\"size <before> -> <after> (<delta>)\" right after that file, not only at the end."}},
+  {a:{fa:"بعد از اتمام همهٔ کار، «Size difference» را با جمع دلتاهای تکی مقایسه کن.",
+      en:"Compare the final \"Size difference\" with the sum of the per-file deltas."},
+   e:{fa:"هم‌جهت‌اند (هر دو منفی یا هر دو مثبت) و از نظر بزرگی معقول‌اند.",
+      en:"They agree in sign and are of a consistent magnitude."},
+   note:{kind:"info", fa:"در حالت پوشه، «Size difference» کل پوشهٔ ورودی در برابر کل خروجی است (شامل فایل‌های جانبی)، پس دقیقاً برابر جمع دلتای ویدیوها نیست.",
+         en:"In folder mode the total compares the whole input tree with the whole output tree (extras included), so it is not exactly the sum of the video deltas."}}
+ ]},
+ {n:2, t:{fa:"جدول خلاصه", en:"Summary block"}, rows:[
+  {a:{fa:"بلوک «All Done» را بخوان.", en:"Read the \"All Done\" block."},
+   e:{fa:"سطرهای Total, OK, Remuxed, Copied unchanged, Skipped, No audio match, Failed, Extra files copied/skipped/failed, Output, Size difference, Elapsed حاضرند.",
+      en:"Rows Total, OK, Remuxed, Copied unchanged, Skipped, No audio match, Failed, Extra files copied/skipped/failed, Output, Size difference and Elapsed are present."}},
+  {a:{fa:"OK را با Remuxed + Copied unchanged مقایسه کن.", en:"Compare OK with Remuxed + Copied unchanged."},
+   e:{fa:"دقیقاً برابرند.", en:"They are exactly equal."}},
+  {a:{fa:"مسیر «Output:» را باز کن.", en:"Open the path shown after \"Output:\"."},
+   e:{fa:"همان پوشه‌ای است که فایل‌ها واقعاً در آن ساخته شده‌اند.",
+      en:"It is the folder where the files were actually written."}}
+ ]}
+]},
+
+{n:13, t:{fa:"لاگ", en:"Logging"}, subs:[
+ {n:1, t:{fa:"سطح پیش‌فرض", en:"Default level"}, rows:[
+  {a:{fa:"بدون MUXCLS_DEBUG یک اجرای ۳ فایلی انجام بده و تعداد خطوط لاگ را بشمار.",
+      en:"Run a 3-file job without MUXCLS_DEBUG and count the log lines."},
+   e:{fa:"لاگ کوتاه است (حدود ۲۰ خط) و شامل خط فرمان ffmpeg نیست.",
+      en:"The log is short (about 20 lines) and contains no ffmpeg command line."}},
+  {a:{fa:"برای هر فایل یک سطر نتیجه پیدا کن.", en:"Find the one result line per file."},
+   e:{fa:"قالب «i/N STATUS action | <relative path> | size=… | elapsed=… | rc=… | detail».",
+      en:"Format \"i/N STATUS action | <relative path> | size=… | elapsed=… | rc=… | detail\"."}},
+  {a:{fa:"مسیرهای داخل سطرهای نتیجه را ببین.", en:"Look at the paths inside the result lines."},
+   e:{fa:"نسبی‌اند؛ مسیرهای مطلق ریشه فقط یک بار در خط «Processing started» آمده‌اند.",
+      en:"They are relative; the absolute roots appear once, on the \"Processing started\" line."}}
+ ]},
+ {n:2, t:{fa:"حالت اشکال‌زدایی", en:"Debug mode"}, rows:[
+  {a:{fa:"MUXCLS_DEBUG=1 بگذار و همان کار را تکرار کن.", en:"Set MUXCLS_DEBUG=1 and repeat the same job."},
+   e:{fa:"خطوط «Command: …» ظاهر می‌شوند و لاگ به‌وضوح بلندتر است.",
+      en:"\"Command: …\" lines appear and the log is visibly longer."}},
+  {a:{fa:"یک remux را عمداً بشکن (مثلاً timeout=5) و لاگ را ببین.",
+      en:"Deliberately break a remux (e.g. timeout=5) and read the log."},
+   e:{fa:"خروجی ffmpeg در سطح ERROR ثبت شده — حتی بدون MUXCLS_DEBUG.",
+      en:"The ffmpeg output is recorded at ERROR level — even without MUXCLS_DEBUG."}},
+  {a:{fa:"در لاگ دنبال رمز/توکن/مقدار حساس بگرد.", en:"Search the log for secrets or tokens."},
+   e:{fa:"هیچ‌کدام نیست؛ فقط مسیرها، خط فرمان و اطلاعات سیستم.",
+      en:"None; only paths, command lines and system information."},
+   note:{kind:"warn", fa:"لاگ‌ها مسیر فایل‌های شخصی را دارند. قبل از اشتراک‌گذاری در issue، مسیرها را پاک کن.",
+         en:"Logs contain personal file paths. Redact them before attaching to an issue."}}
+ ]}
+]},
+
+{n:14, t:{fa:"ناوبری و برگشت", en:"Navigation and back"}, subs:[
+ {n:1, t:{fa:"کلید back", en:"The back key"}, rows:[
+  {a:{fa:"در سؤال «Keep chapters?» عدد ۰ بزن.", en:"Type 0 at \"Keep chapters?\"."},
+   e:{fa:"«Back. Returning to previous step.» و به مرحلهٔ قبل برمی‌گردد.",
+      en:"\"Back. Returning to previous step.\" and the previous step is shown."}},
+  {a:{fa:"در سؤال مسیر خروجی ۰ بزن.", en:"Type 0 at the output folder prompt."},
+   e:{fa:"«Back. Returning to previous step.» و آخرین سؤال قوانین دوباره پرسیده می‌شود.",
+      en:"\"Back. Returning to previous step.\" and the last rule question is asked again."}},
+  {a:{fa:"در تأیید نهایی «Start processing?» عدد ۰ بزن.", en:"Type 0 at the final \"Start processing?\" confirmation."},
+   e:{fa:"«Back. Returning to output folder.» و هیچ فایلی پردازش نمی‌شود.",
+      en:"\"Back. Returning to output folder.\" and nothing is processed."}},
+  {a:{fa:"در «Start processing?» جواب n بده.", en:"Answer n at \"Start processing?\"."},
+   e:{fa:"«Cancelled.» و برنامه بدون ساختن هیچ فایلی تمام می‌شود.",
+      en:"\"Cancelled.\" and the program ends without creating any file."}},
+  {a:{fa:"بعد از پایان یک اجرا، در سؤال مسیر بعدی quit بزن.", en:"After a completed run, type quit at the next path prompt."},
+   e:{fa:"«Task complete. Ready for next task.» قبلاً چاپ شده و حالا «Exited.» با کد ۰.",
+      en:"\"Task complete. Ready for next task.\" was printed earlier and now \"Exited.\" with code 0."}}
+ ]}
+]},
+
+{n:15, t:{fa:"سکوهای مختلف", en:"Cross-platform"}, subs:[
+ {n:1, t:{fa:"ویندوز در برابر لینوکس", en:"Windows vs Linux"}, rows:[
+  {a:{fa:"روی لینوکس یک کار «کپی بدون تغییر» اجرا کن.", en:"Run a copy-unchanged job on Linux."},
+   e:{fa:"موفق است و خروجی بایت‌به‌بایت با ورودی یکسان است.",
+      en:"It succeeds and the output is byte-identical to the input."}},
+  {a:{fa:"روی لینوکس فایل‌های جانبی را هم کپی کن.", en:"Copy extra files on Linux too."},
+   e:{fa:"«Extra files copied» درست است و ساختار پوشه حفظ شده.",
+      en:"\"Extra files copied\" is correct and the folder structure is preserved."}},
+  {a:{fa:"روی لینوکس منبعی فقط‌خواندنی (chmod 444) کپی کن، بعد با Overwrite=y دوباره اجرا کن.",
+      en:"On Linux copy a read-only source (chmod 444), then re-run with Overwrite=y."},
+   e:{fa:"اجرای دوم موفق است — خروجی فقط‌خواندنی نشده که جایگزینی را ببندد.",
+      en:"The second run succeeds — the output was not made read-only in a way that blocks replacement."},
+   note:{kind:"warn", fa:"کپی کردن مود فایل باعث می‌شود اجرای بعدی نتواند بازنویسی کند؛ فقط زمان کپی می‌شود.",
+         en:"Copying the file mode would block the next overwrite; only timestamps are copied."}},
+  {a:{fa:"نام فایلی با کاراکتر غیر ASCII (فارسی/ژاپنی) بده.", en:"Use a filename with non-ASCII characters (Persian/Japanese)."},
+   e:{fa:"در گزارش، لاگ و نام خروجی درست نمایش داده می‌شود (لاگ UTF-8 است).",
+      en:"It renders correctly in the report, the log and the output name (the log is UTF-8)."}}
+ ]}
+]},
+
+{n:16, t:{fa:"جریان‌های سرتاسری", en:"End-to-end flows"}, subs:[
+ {n:1, t:{fa:"جریان کامل", en:"Full flows"}, rows:[
+  {a:{fa:"E2E-A: پوشهٔ دوزبانه ← فقط jpn ← همهٔ زیرنویس‌ها ← ضمیمه y ← متادیتا y ← بدون ویرایش ← چپتر y ← کپی جانبی y ← overwrite n.",
+      en:"E2E-A: dual-audio folder → jpn only → all subtitles → attachments y → metadata y → no edits → chapters y → copy extras y → overwrite n."},
+   e:{fa:"Failed=0؛ هر خروجی فقط صدای jpn دارد؛ فایل‌های جانبی کپی شده‌اند؛ پوشه‌ای با «[JA Audio + All Subs]» ساخته شده.",
+      en:"Failed=0; every output has jpn audio only; extras are copied; a folder named \"[JA Audio + All Subs]\" exists."}},
+  {a:{fa:"E2E-B: همان پوشه ← همه‌چیز نگه‌داشته شود.", en:"E2E-B: same folder → keep everything."},
+   e:{fa:"Remuxed=0، Copied unchanged=N، Size difference صفر یا نزدیک صفر.",
+      en:"Remuxed=0, Copied unchanged=N, Size difference zero or near zero."}},
+  {a:{fa:"E2E-C: پوشه‌ای شامل یک فایل سالم، یک بدون ویدیو، یک بدون صدا و یک خراب.",
+      en:"E2E-C: a folder with one healthy file, one with no video, one with no audio and one broken."},
+   e:{fa:"Total=4؛ OK=1؛ No audio match=1؛ Failed=2؛ و هر چهار فایل در بخش Processing نام برده شده‌اند.",
+      en:"Total=4; OK=1; No audio match=1; Failed=2; and all four files are named in the Processing section."}},
+  {a:{fa:"E2E-D: اجرای E2E-A را دو بار با Overwrite=y تکرار کن.", en:"E2E-D: repeat E2E-A twice with Overwrite=y."},
+   e:{fa:"یک پوشهٔ خروجی، خروجی‌ها سالم و کامل، بدون هیچ فایل partial یا پوشهٔ staging.",
+      en:"One output folder, outputs healthy and complete, with no partial file or staging folder."}},
+  {a:{fa:"E2E-E: بعد از یک اجرای موفق، همان پوشهٔ خروجی را به‌عنوان ورودی بده و verify کن.",
+      en:"E2E-E: after a successful run, feed the output folder back as input and verify."},
+   e:{fa:"همهٔ فایل‌ها اسکن می‌شوند و تعداد استریم‌ها با انتظار قوانین اجرای قبلی می‌خواند.",
+      en:"Every file scans and the stream counts match what the previous run's rules imply."}}
+ ]}
+]}
+];
+
+/* --------------------- The two required summary tables ------------------- */
+/* MUST: the absence of the message is the bug.
+   MAY NOT: any error/abort here is the bug. Both reference the test IDs above. */
+const MUST = {
+  title:{fa:"باید خطا ظاهر شود", en:"An error MUST appear"},
+  intro:{fa:"در این حالت‌ها نبودِ پیام، خودش باگ است.", en:"In these cases the absence of the message is the bug."},
+  rows:[
+    {c:{fa:"ffmpeg در PATH نیست", en:"ffmpeg missing from PATH"}, m:"ERROR: ffmpeg was not found in PATH.", r:"1.1.2"},
+    {c:{fa:"ffprobe در PATH نیست", en:"ffprobe missing from PATH"}, m:"ERROR: ffprobe was not found in PATH.", r:"1.1.3"},
+    {c:{fa:"مسیر ورودی وجود ندارد", en:"input path does not exist"}, m:"Path does not exist: <path>", r:"2.1.3"},
+    {c:{fa:"هیچ فایل ویدیویی نیست", en:"no video files found"}, m:"No supported video files found.", r:"2.2.2"},
+    {c:{fa:"ffprobe فایل را نمی‌خواند", en:"ffprobe cannot read a file"}, m:"[PROBE FAILED] <path>", r:"3.2.1"},
+    {c:{fa:"همهٔ فایل‌ها شکست خوردند", en:"every file failed to scan"}, m:"No files could be scanned successfully.", r:"3.2.5"},
+    {c:{fa:"قانون صدا هیچ استریمی را نگرفت", en:"audio rule matched nothing"}, m:"SKIP no matching audio selected: <rel>", r:"4.3.1"},
+    {c:{fa:"فایل بدون استریم ویدیو", en:"file with no video stream"}, m:"FAILED: no video stream found: <rel>", r:"16.1.3"},
+    {c:{fa:"خروجی همان پوشهٔ ورودی است", en:"output equals the input folder"}, m:"The output folder cannot be the input folder itself.", r:"8.1.1"},
+    {c:{fa:"خروجی داخل پوشهٔ ورودی است", en:"output inside the input folder"}, m:"The output folder cannot be inside the input folder.", r:"8.1.2"},
+    {c:{fa:"مسیر خروجی نام فایل رسانه است", en:"output path is a media file name"}, m:"Output path must be a folder, not a media file name.", r:"8.2.3"},
+    {c:{fa:"گزینهٔ منو نامعتبر است", en:"invalid menu option"}, m:"Invalid choice. Valid options: …", r:"4.2.6"},
+    {c:{fa:"مقدار خالی در سؤال متنی", en:"empty value at a text prompt"}, m:"Value cannot be empty.", r:"2.1.2"},
+    {c:{fa:"remux شکست خورد یا timeout شد", en:"remux failed or timed out"}, m:"FAILED", r:"10.1.1"},
+    {c:{fa:"Ctrl+C در حین کار", en:"Ctrl+C during processing"}, m:"Cancelled by user.", r:"10.1.4"}
+  ]
+};
+const MAYNOT = {
+  title:{fa:"نباید هیچ خطایی ظاهر شود", en:"No error MAY appear"},
+  intro:{fa:"در این حالت‌ها هر خطا، توقف یا فایل ازدست‌رفته باگ است.", en:"Here any error, abort or lost file is the bug."},
+  rows:[
+    {c:{fa:"لینوکس/مک بدون robocopy", en:"Linux/macOS without robocopy"}, m:{fa:"اجرا عادی است و کپی با کتابخانهٔ استاندارد انجام می‌شود", en:"the run proceeds and copies with the standard library"}, r:"1.1.4"},
+    {c:{fa:"پسوند با حروف بزرگ (.MKV)", en:"upper-case extension (.MKV)"}, m:{fa:"فایل پیدا و پردازش می‌شود", en:"the file is found and processed"}, r:"2.2.3"},
+    {c:{fa:"نام فایل غیر ASCII", en:"non-ASCII filename"}, m:{fa:"در گزارش، لاگ و خروجی درست است", en:"correct in the report, log and output"}, r:"15.1.4"},
+    {c:{fa:"تگ زبان ندارد", en:"no language tag"}, m:{fa:"به‌صورت *uknown نشان داده می‌شود، بدون خطا", en:"shown as *uknown, without an error"}, r:"3.1.3"},
+    {c:{fa:"همه‌چیز نگه داشته شود", en:"keep everything"}, m:{fa:"کپی بدون تغییر، بدون اجرای ffmpeg", en:"copy unchanged, ffmpeg never runs"}, r:"9.1.1"},
+    {c:{fa:"default روی تراک دوم", en:"default on the second track"}, m:{fa:"remux رخ نمی‌دهد و پرچم جابه‌جا نمی‌شود", en:"no remux and the flag does not move"}, r:"6.1.1"},
+    {c:{fa:"«حذف کل صدا» انتخاب شود", en:"\"remove all audio\" selected"}, m:{fa:"هیچ فایلی NO_AUDIO_MATCH نمی‌شود", en:"no file becomes NO_AUDIO_MATCH"}, r:"4.2.5"},
+    {c:{fa:"دو بار اجرا با Overwrite=y", en:"two runs with Overwrite=y"}, m:{fa:"یک پوشهٔ خروجی، بدون «(2)»", en:"one output folder, no \"(2)\""}, r:"8.3.3"},
+    {c:{fa:"شکست remux با خروجی قبلی موجود", en:"failed remux with an existing output"}, m:{fa:"خروجی قبلی سالم می‌ماند", en:"the previous output stays intact"}, r:"10.1.3"},
+    {c:{fa:"پوشهٔ Logs فقط‌خواندنی", en:"read-only Logs folder"}, m:{fa:"«Logging disabled: …» و ادامهٔ کار", en:"\"Logging disabled: …\" and the run continues"}, r:"1.2.4"},
+    {c:{fa:"خروجی به فایل هدایت شود", en:"output redirected to a file"}, m:{fa:"بدون آشغال \\r و بدون خط پیشرفت", en:"no \\r noise and no progress line"}, r:"12.1.2"},
+    {c:{fa:"منبع فقط‌خواندنی روی POSIX", en:"read-only source on POSIX"}, m:{fa:"اجرای بعدی با Overwrite موفق است", en:"the next Overwrite run succeeds"}, r:"15.1.3"}
+  ]
+};
+
+/* ------------------------------- Rendering ------------------------------- */
+let lang = localStorage.getItem(LANG_KEY) || "fa";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {}; } catch (e) { state = {}; }
+
+const T = (v) => (v && typeof v === "object" && (v.fa || v.en)) ? (v[lang] || v.en || v.fa) : (v == null ? "" : String(v));
+const el = (tag, cls, text) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;   // textContent everywhere: no injection
+  return n;
+};
+
+function rowId(s, sub, i){ return s.n + "." + sub.n + "." + (i + 1); }
+
+function allRows(){
+  const out = [];
+  S.forEach(s => s.subs.forEach(sub => sub.rows.forEach((r, i) => out.push({s, sub, r, id: rowId(s, sub, i)}))));
+  return out;
+}
+const TOTAL = allRows().length;
+
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+function buildSetup(){
+  const sec = el("section", "sec");
+  sec.id = "sec-0";
+  const head = el("div", "sechead");
+  head.append(el("span", "caret", "▾"), el("h2", null, T(SETUP.title)));
+  head.addEventListener("click", () => sec.classList.toggle("collapsed"));
+  const body = el("div", "body");
+  body.append(el("p", "intro", T(SETUP.intro)));
+  const tbl = el("table", "setup");
+  const thead = el("thead"), htr = el("tr");
+  [UI.colSetting, UI.colNormal, UI.colTest, UI.colWhy].forEach(h => htr.append(el("th", null, T(h))));
+  thead.append(htr); tbl.append(thead);
+  const tb = el("tbody");
+  SETUP.rows.forEach(r => {
+    const tr = el("tr");
+    const c1 = el("td"); c1.append(el("code", null, T(r.s))); tr.append(c1);
+    tr.append(el("td", null, T(r.n)));
+    const c3 = el("td"); c3.append(el("code", null, T(r.t))); tr.append(c3);
+    tr.append(el("td", null, T(r.w)));
+    tb.append(tr);
+  });
+  tbl.append(tb); body.append(tbl); sec.append(head, body);
+  return sec;
+}
+
+function buildRow(id, r){
+  const tr = el("tr", "row");
+  tr.dataset.id = id;
+  tr.dataset.state = state[id] || "";
+
+  const tdA = el("td");
+  tdA.append(el("div", "id", id));
+  tdA.append(el("div", null, T(r.a)));
+  const acts = el("div", "acts");
+  [["pass", "✓"], ["fail", "✕"], ["na", "–"]].forEach(([v, glyph]) => {
+    const b = el("button", null, glyph);
+    b.type = "button";
+    b.dataset.v = v;
+    b.setAttribute("aria-label", T(UI[v]) + " " + id);
+    if (state[id] === v) b.classList.add("on");
+    b.addEventListener("click", () => {
+      state[id] = (state[id] === v) ? "" : v;
+      if (!state[id]) delete state[id];
+      save(); refresh();
+    });
+    acts.append(b);
+  });
+  tdA.append(acts);
+
+  const tdE = el("td");
+  tdE.append(el("div", null, T(r.e)));
+  if (r.note) tdE.append(el("div", "note " + (r.note.kind || "info"), T(r.note)));
+
+  tr.append(tdA, tdE);
+  return tr;
+}
+
+function buildSection(s){
+  const sec = el("section", "sec");
+  sec.id = "sec-" + s.n;
+  const head = el("div", "sechead");
+  head.append(el("span", "caret", "▾"), el("h2", null, s.n + " — " + T(s.t)));
+  const mini = el("div", "mini");
+  const mp = el("i", "p"), mf = el("i", "f"), mn = el("i", "n");
+  mini.append(mp, mf, mn);
+  const dt = el("div", "dt");
+  head.append(mini, dt);
+  head.addEventListener("click", () => sec.classList.toggle("collapsed"));
+
+  const body = el("div", "body");
+  s.subs.forEach(sub => {
+    body.append(el("div", "subhead", s.n + "." + sub.n + " " + T(sub.t)));
+    const tbl = el("table");
+    const thead = el("thead"), htr = el("tr");
+    htr.append(el("th", null, T(UI.colAction)), el("th", null, T(UI.colExpect)));
+    thead.append(htr); tbl.append(thead);
+    const tb = el("tbody");
+    sub.rows.forEach((r, i) => tb.append(buildRow(rowId(s, sub, i), r)));
+    tbl.append(tb); body.append(tbl);
+  });
+
+  sec.append(head, body);
+  sec._mini = {mp, mf, mn, dt};
+  return sec;
+}
+
+function buildDigest(id, d, kind){
+  const sec = el("section", "sec");
+  sec.id = id;
+  const head = el("div", "sechead");
+  head.append(el("span", "caret", "▾"), el("h2", null, T(d.title)));
+  head.addEventListener("click", () => sec.classList.toggle("collapsed"));
+  const body = el("div", "body");
+  body.append(el("p", "intro", T(d.intro)));
+  const tbl = el("table");
+  const thead = el("thead"), htr = el("tr");
+  htr.append(el("th", null, T(UI.colInput)), el("th", null, T(UI.colExpect)), el("th", null, "ID"));
+  thead.append(htr); tbl.append(thead);
+  const tb = el("tbody");
+  d.rows.forEach(r => {
+    const tr = el("tr");
+    tr.append(el("td", null, T(r.c)));
+    const tdM = el("td");
+    if (typeof r.m === "string") tdM.append(el("code", null, r.m)); else tdM.append(document.createTextNode(T(r.m)));
+    tr.append(tdM);
+    const tdR = el("td"); tdR.append(el("span", "id", r.r)); tr.append(tdR);
+    tb.append(tr);
+  });
+  tbl.append(tb); body.append(tbl);
+  sec.append(head, body);
+  return sec;
+}
+
+function render(){
+  document.body.dataset.lang = lang;
+  document.documentElement.lang = lang;
+  document.getElementById("docTitle").textContent = T(UI.title);
+  document.getElementById("docSub").textContent = T(UI.sub);
+  document.getElementById("tocTitle").textContent = T(UI.sections);
+  document.getElementById("q").placeholder = T(UI.search);
+  document.getElementById("btnLang").textContent = T(UI.langBtn);
+  document.getElementById("btnExpand").textContent = T(UI.expand);
+  document.getElementById("btnReset").textContent = T(UI.reset);
+  document.getElementById("empty").textContent = T(UI.none);
+
+  const meta = document.getElementById("docMeta");
+  meta.textContent = "";
+  [[T(UI.version), META.version], [T(UI.commit), META.commit],
+   [T(UI.tests), String(TOTAL)], [T(UI.secs), String(S.length)]].forEach(([k, v]) => {
+    const c = el("span", "chip"); c.append(document.createTextNode(k + ": ")); c.append(el("b", null, v)); meta.append(c);
+  });
+
+  const f = document.getElementById("filter");
+  const keep = f.value || "all";
+  f.textContent = "";
+  [["all", UI.all], ["notdone", UI.notdone], ["pass", UI.pass], ["fail", UI.fail], ["na", UI.na]]
+    .forEach(([v, label]) => { const o = el("option", null, T(label)); o.value = v; f.append(o); });
+  f.value = keep;
+
+  const out = document.getElementById("out");
+  out.textContent = "";
+  out.append(buildSetup());
+  S.forEach(s => out.append(buildSection(s)));
+  out.append(buildDigest("digest-must", MUST, "danger"));
+  out.append(buildDigest("digest-maynot", MAYNOT, "info"));
+
+  const links = document.getElementById("tocLinks");
+  links.textContent = "";
+  const a0 = el("a", null, T(SETUP.title)); a0.href = "#sec-0"; links.append(a0);
+  S.forEach(s => { const a = el("a", null, s.n + " — " + T(s.t)); a.href = "#sec-" + s.n; links.append(a); });
+  [["digest-must", MUST], ["digest-maynot", MAYNOT]].forEach(([id, d]) => {
+    const a = el("a", null, T(d.title)); a.href = "#" + id; links.append(a);
+  });
+
+  refresh();
+}
+
+function refresh(){
+  const q = (document.getElementById("q").value || "").trim().toLowerCase();
+  const mode = document.getElementById("filter").value || "all";
+  let pass = 0, fail = 0, na = 0, shown = 0;
+
+  S.forEach(s => {
+    const sec = document.getElementById("sec-" + s.n);
+    let sp = 0, sf = 0, sn = 0, stotal = 0, visible = 0;
+    sec.querySelectorAll("tr.row").forEach(tr => {
+      const st = state[tr.dataset.id] || "";
+      tr.dataset.state = st;
+      tr.querySelectorAll(".acts button").forEach(b => b.classList.toggle("on", b.dataset.v === st));
+      stotal++;
+      if (st === "pass") sp++; else if (st === "fail") sf++; else if (st === "na") sn++;
+
+      const text = tr.textContent.toLowerCase();
+      const okQ = !q || text.includes(q);
+      const okF = mode === "all" || (mode === "notdone" ? !st : st === mode);
+      const vis = okQ && okF;
+      tr.classList.toggle("hidden", !vis);
+      if (vis) visible++;
+    });
+    pass += sp; fail += sf; na += sn; shown += visible;
+    sec.hidden = visible === 0 && (q !== "" || mode !== "all");
+    const done = sp + sf + sn;
+    const m = sec._mini;
+    if (m){
+      m.mp.style.width = (stotal ? sp / stotal * 100 : 0) + "%";
+      m.mf.style.width = (stotal ? sf / stotal * 100 : 0) + "%";
+      m.mn.style.width = (stotal ? sn / stotal * 100 : 0) + "%";
+      m.dt.textContent = done + "/" + stotal;
+    }
+  });
+
+  document.getElementById("tp").style.width = (pass / TOTAL * 100) + "%";
+  document.getElementById("tf").style.width = (fail / TOTAL * 100) + "%";
+  document.getElementById("tn").style.width = (na / TOTAL * 100) + "%";
+  document.getElementById("cp").textContent = T(UI.pass) + " " + pass;
+  document.getElementById("cf").textContent = T(UI.fail) + " " + fail;
+  document.getElementById("cn").textContent = T(UI.na) + " " + na;
+  document.getElementById("cr").textContent = T(UI.remain) + " " + (TOTAL - pass - fail - na);
+  document.getElementById("empty").hidden = shown !== 0;
+}
+
+document.getElementById("q").addEventListener("input", refresh);
+document.getElementById("filter").addEventListener("change", refresh);
+document.getElementById("btnLang").addEventListener("click", () => {
+  lang = lang === "fa" ? "en" : "fa";
+  localStorage.setItem(LANG_KEY, lang);
+  render();
+});
+document.getElementById("btnExpand").addEventListener("click", (e) => {
+  const secs = [...document.querySelectorAll("section.sec")];
+  const anyOpen = secs.some(s => !s.classList.contains("collapsed"));
+  secs.forEach(s => s.classList.toggle("collapsed", anyOpen));
+  e.target.textContent = anyOpen ? T(UI.expand) : T(UI.collapse);
+});
+document.getElementById("btnReset").addEventListener("click", () => {
+  if (!confirm(T(UI.confirm))) return;
+  state = {}; save(); refresh();
+});
+const topBtn = document.getElementById("top");
+topBtn.addEventListener("click", () => window.scrollTo({top: 0, behavior: "smooth"}));
+window.addEventListener("scroll", () => {
+  topBtn.classList.toggle("show", window.scrollY > 500);
+  let active = null;
+  document.querySelectorAll("section.sec").forEach(s => {
+    if (s.getBoundingClientRect().top <= 120) active = s.id;
+  });
+  document.querySelectorAll("#tocLinks a").forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + active));
+});
+
+render();
+</script>
