@@ -4,6 +4,7 @@ This backend is the only one on Linux/macOS, and it also runs on Windows wheneve
 the output is renamed, so a failed copy here must never damage what is already on
 disk.
 """
+import itertools
 import os
 import stat
 import subprocess
@@ -13,6 +14,7 @@ import pytest
 from muxcls import copying
 from muxcls.constants import AUDIO_ALL, SUBTITLE_ALL
 from muxcls.models import SelectionRules
+from muxcls.output import partial_path
 
 EXISTING = b"PREVIOUS GOOD OUTPUT"
 
@@ -216,17 +218,130 @@ def test_extra_without_overwrite_keeps_the_existing_destination(stale_extra):
 
 def test_copy_file_with_progress_honours_a_timeout(tmp_path, monkeypatch):
     source = tmp_path / "big.mkv"
-    source.write_bytes(b"x" * (4 * 1024))
+    source.write_bytes(b"x" * 4096)
     destination = tmp_path / "out.mkv"
     destination.write_bytes(EXISTING)
-    # One byte per read turns the 4 KiB source into 4096 loop passes, so the
-    # deadline is reached well before the copy could finish.
+    # A fake clock instead of a race against the machine: every reading jumps
+    # 100 seconds, so the deadline is passed on the first chunk no matter how
+    # fast the runner is, and no matter how many readings precede it.
+    ticks = itertools.count(0.0, 100.0)
+    monkeypatch.setattr(copying.time, "perf_counter", lambda: next(ticks))
     monkeypatch.setattr(copying, "COPY_CHUNK_BYTES", 1)
 
     with pytest.raises(OSError):
-        copying.copy_file_with_progress(source, destination, timeout=0.001)
+        copying.copy_file_with_progress(source, destination, timeout=1.0)
 
     assert destination.read_bytes() == EXISTING
+    assert not partial_path(destination).exists()
+
+
+def test_copy_file_with_progress_completes_when_the_timeout_is_generous(tmp_path):
+    # Guards the mirror image: the deadline must not fire on a normal copy.
+    source = tmp_path / "small.mkv"
+    source.write_bytes(b"payload" * 100)
+    destination = tmp_path / "out.mkv"
+
+    copying.copy_file_with_progress(source, destination, timeout=3600)
+
+    assert destination.read_bytes() == source.read_bytes()
+    assert not partial_path(destination).exists()
+
+
+# --- F-03: extra-file copies are bounded and cancellable too ---
+
+def test_extra_stdlib_copy_passes_the_operation_timeout(tmp_path, monkeypatch):
+    source_root = tmp_path / "in"
+    source_root.mkdir()
+    (source_root / "notes.txt").write_text("hi", encoding="utf-8")
+    seen = {}
+
+    def fake(src, dst, total_started_at=None, timeout=None):
+        seen["timeout"] = timeout
+        dst.write_bytes(src.read_bytes())
+
+    monkeypatch.setattr(copying, "copy_file_with_progress", fake)
+    copying.copy_extra_files_with_stdlib(
+        [source_root / "notes.txt"], source_root, tmp_path / "out", _extra_rules(True)
+    )
+
+    assert seen["timeout"] is not None and seen["timeout"] > 0
+
+
+@WINDOWS_ONLY
+def test_extra_robocopy_runs_under_a_cancellable_bounded_runner(tmp_path, monkeypatch):
+    source_root = tmp_path / "in"
+    source_root.mkdir()
+    extra = source_root / "notes.txt"
+    extra.write_text("hi", encoding="utf-8")
+    output_root = tmp_path / "out"
+    seen = {}
+
+    def fake_progress(args, total_started_at=None, timeout=None):
+        seen["args"] = args
+        seen["timeout"] = timeout
+        destination = output_root / "notes.txt"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(extra.read_bytes())
+        return subprocess.CompletedProcess(args, 1, "", "")
+
+    monkeypatch.setattr(copying, "run_with_progress", fake_progress)
+
+    copying.copy_extra_files_with_robocopy(
+        [extra], source_root, output_root, _extra_rules(False)
+    )
+
+    assert seen["timeout"] is not None and seen["timeout"] > 0
+    # run_command offers no progress loop and no interruption point for a long
+    # tree copy, so this module must not reach for it at all.
+    assert not hasattr(copying, "run_command")
+
+
+@WINDOWS_ONLY
+def test_failed_robocopy_extra_copy_removes_incomplete_files(tmp_path, monkeypatch):
+    source_root = tmp_path / "in"
+    source_root.mkdir()
+    extra = source_root / "notes.txt"
+    extra.write_text("COMPLETE SOURCE TEXT", encoding="utf-8")
+    output_root = tmp_path / "out"
+
+    def truncated_then_fail(args, total_started_at=None, timeout=None):
+        destination = output_root / "notes.txt"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("COMPLETE", encoding="utf-8")  # short = incomplete
+        return subprocess.CompletedProcess(args, 8, "", "robocopy failure")
+
+    monkeypatch.setattr(copying, "run_with_progress", truncated_then_fail)
+
+    copied, skipped, failed = copying.copy_extra_files_with_robocopy(
+        [extra], source_root, output_root, _extra_rules(False)
+    )
+
+    assert failed >= 1
+    assert not (output_root / "notes.txt").exists(), "an incomplete copy was left behind"
+
+
+@WINDOWS_ONLY
+def test_cancelled_robocopy_extra_copy_removes_incomplete_files(tmp_path, monkeypatch):
+    source_root = tmp_path / "in"
+    source_root.mkdir()
+    extra = source_root / "notes.txt"
+    extra.write_text("COMPLETE SOURCE TEXT", encoding="utf-8")
+    output_root = tmp_path / "out"
+
+    def cancel(args, total_started_at=None, timeout=None):
+        destination = output_root / "notes.txt"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text("COMP", encoding="utf-8")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(copying, "run_with_progress", cancel)
+
+    with pytest.raises(KeyboardInterrupt):
+        copying.copy_extra_files_with_robocopy(
+            [extra], source_root, output_root, _extra_rules(False)
+        )
+
+    assert not (output_root / "notes.txt").exists(), "cancellation left an incomplete copy"
 
 
 def test_extra_file_copy_does_not_make_its_output_read_only(tmp_path):

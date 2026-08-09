@@ -10,14 +10,14 @@ import os
 import shutil
 import time
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .constants import COPY_CHUNK_BYTES, IS_WINDOWS, PARTIAL_MARKER, ROBOCOPY_BIN, VIDEO_EXTENSIONS
 from .colors import err
 from .logsetup import LOGGER
 from .models import SelectionRules
 from .textutil import ProgressPrinter
-from .media import run_command, run_with_progress
+from .media import operation_timeout_seconds, run_with_progress
 from .output import destination_snapshot, extra_file_sources, partial_path, path_is_under, robocopy_success
 
 
@@ -189,7 +189,7 @@ def copy_extra_files_with_stdlib(
 
         try:
             destination.parent.mkdir(parents=True, exist_ok=True)
-            copy_file_with_progress(source, destination)
+            copy_file_with_progress(source, destination, timeout=operation_timeout_seconds())
             copied += 1
         except OSError as exc:
             LOGGER.error("Could not copy %s -> %s: %s", source, destination, exc)
@@ -201,18 +201,39 @@ def copy_extra_files_with_stdlib(
     return copied, skipped, failed
 
 
+def remove_incomplete_copies(
+    pairs: Sequence[Tuple[Path, Path]],
+    before: Dict[Path, Tuple[int, int]],
+) -> None:
+    """Delete destinations this run created but did not finish writing.
+
+    A destination that already existed before the run is never touched: it is
+    not ours to remove, and it is still the last known-good copy.
+    """
+    for source, destination in pairs:
+        if destination in before or not destination.exists():
+            continue
+        try:
+            if destination.stat().st_size != source.stat().st_size:
+                destination.unlink()
+                LOGGER.warning("Removed incomplete copy: %s", destination)
+        except OSError as exc:
+            LOGGER.warning("Could not remove incomplete copy %s: %s", destination, exc)
+
+
 def copy_extra_files_with_robocopy(
     sources: Sequence[Path],
     input_root: Path,
     output_root: Path,
     rules: SelectionRules,
 ) -> Tuple[int, int, int]:
-    destinations: List[Path] = []
+    pairs: List[Tuple[Path, Path]] = []
     for source in sources:
         try:
-            destinations.append(output_root / source.relative_to(input_root))
+            pairs.append((source, output_root / source.relative_to(input_root)))
         except ValueError:
             pass
+    destinations = [destination for _, destination in pairs]
 
     before = destination_snapshot(destinations)
 
@@ -237,8 +258,17 @@ def copy_extra_files_with_robocopy(
 
     args.extend(robocopy_skip_existing_flags())
 
-    proc = run_command(args, timeout=None)
+    # The cancellable runner, not run_command: a tree copy is long enough to need
+    # a bound and to be interrupted, and its child must be reaped either way.
+    try:
+        proc = run_with_progress(args, None, operation_timeout_seconds())
+    except BaseException:
+        remove_incomplete_copies(pairs, before)
+        raise
 
+    # A half-written destination is worse than a missing one; the snapshot below
+    # then reports it as failed rather than copied.
+    remove_incomplete_copies(pairs, before)
     after = destination_snapshot(destinations)
     copied = 0
     skipped = 0
