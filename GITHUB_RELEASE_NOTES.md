@@ -46,7 +46,7 @@ audio, or subtitles.
 
 - A live progress view. On a terminal, processing draws a block that repaints in place: an
   `Overall` bar with a files-done count and the run's elapsed time, then one row per file with
-  its own bar, percentage, size, speed, ETA and elapsed time. Files still waiting read
+  its own bar, percentage, how much of it is done out of its total, an ETA and its elapsed time. Files still waiting read
   `Queued`; finished ones read `Done`, `Failed` or `Skipped`. When the list is taller than the
   terminal it follows the file being worked on and says how many rows are hidden.
 - The percentages are real, not decorative: a remux reads FFmpeg's own reported position, the

@@ -47,6 +47,27 @@ def test_truncate_visible_leaves_a_short_line_alone():
     assert truncate_visible(line, 40) == line
 
 
+def test_no_row_shows_a_transfer_speed():
+    row = ProgressRow(name="a.mkv", total=489_401_205, completed=200_000_000,
+                      state=ACTIVE, started_at=1.0)
+    body = "\n".join(ProgressView([row], enabled=False).compose(99, 24))
+    assert "/s" not in body, "the speed column was removed on purpose"
+
+
+def test_elapsed_is_labelled_not_a_bare_time():
+    rows = _rows(2)
+    view = ProgressView(rows, enabled=False)
+    view.finish(0, DONE)
+    body = "\n".join(view.compose(99, 24))
+    assert body.count("Elapsed") >= 2, "both Overall and the file rows carry the label"
+
+
+def test_size_is_shown_as_done_over_total():
+    row = ProgressRow(name="a.mkv", total=1_000_000, completed=250_000, state=ACTIVE)
+    line = ProgressView([row], enabled=False).compose(99, 24)[-1]
+    assert " / " in line, "a total with no progress beside it says nothing"
+
+
 def test_a_full_row_survives_a_normal_terminal_width():
     row = ProgressRow(name="Season 1/Episode 01.mkv", total=489_401_205,
                       percent=83.5, state=ACTIVE, detail="")
