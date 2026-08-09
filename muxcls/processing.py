@@ -9,10 +9,11 @@ from .colors import ACTION_SEPARATOR_COLOR, C, PROCESS_DONE_COLOR, PROCESS_SEPAR
 from .logsetup import LOGGER
 from .models import MediaFile, SelectionRules
 from .textutil import center_for_terminal, format_elapsed_time, format_language_list, format_size_difference, format_stream_size, separator_line
-from .media import find_video_files, operation_timeout_seconds, run_with_progress, scan_files
+from .media import find_video_files, operation_timeout_seconds, read_ffmpeg_percent, run_with_progress, scan_files
 from .muxlogic import build_ffmpeg_command, remux_needed_reasons, selected_audio_streams, selected_subtitle_streams
 from .output import display_path, make_output_path, partial_path, path_total_size
 from .copying import copy_extra_files, copy_video_without_remux
+from .progressview import ACTIVE, DONE, FAILED, SKIPPED, ProgressRow, ProgressView
 from .reporting import print_header
 
 
@@ -78,6 +79,15 @@ def append_file_result(
         LOGGER.info(message)
 
 
+def file_size(path: Path) -> Optional[int]:
+    size = path_total_size(path)
+    return size or None
+
+
+def file_size_delta(input_file: Path, output_file: Path) -> int:
+    return path_total_size(output_file) - path_total_size(input_file)
+
+
 def print_file_size_change(input_file: Path, output_file: Path) -> int:
     """Show what this one file gained or lost, right after it finishes."""
     before = path_total_size(input_file)
@@ -122,11 +132,24 @@ def process_files(
     file_results: List[Dict[str, str]] = []
     index = 0
 
+    # One row per discovered file, in the order they are handled. On a terminal
+    # the view owns the screen and repaints in place; with redirected output
+    # there is no cursor to move, so the per-file lines below are printed
+    # instead - which is also what a log or a CI transcript wants to read.
+    rows = [ProgressRow(name=str(display_path(input_root, path)))
+            for path in probe_failures]
+    rows += [ProgressRow(name=str(display_path(input_root, media.path)),
+                         total=file_size(media.path))
+             for media in media_files]
+    view = ProgressView(rows)
+    say = (lambda *a, **k: None) if view.enabled else print
+
     # Files that could not be probed are part of this run's totals; they are
     # reported first so nothing discovered on disk silently disappears.
     for failure in probe_failures:
         index += 1
-        print(err(f"[{index}/{total}] FAILED to scan: {display_path(input_root, failure)}"))
+        say(err(f"[{index}/{total}] FAILED to scan: {display_path(input_root, failure)}"))
+        view.finish(index - 1, FAILED, "ffprobe could not read it")
         failed += 1
         append_file_result(
             file_results, index, total, "probe", "FAILED", failure, None,
@@ -139,7 +162,7 @@ def process_files(
         rel = display_path(input_root, input_file)
         file_started_at = time.perf_counter()
         if index > 1:
-            print(separator_line(PROCESS_SEPARATOR_COLOR))
+            say(separator_line(PROCESS_SEPARATOR_COLOR))
 
         def finish(action: str, status: str, out: Optional[Path], detail: str,
                    returncode: Optional[int] = None, size_delta: Optional[int] = None) -> None:
@@ -151,7 +174,8 @@ def process_files(
         # A file with a video extension but no video stream is invalid input, not
         # a rule mismatch: reject it before anything is copied or remuxed.
         if not media.video_streams:
-            print(err(f"[{index}/{total}] FAILED: no video stream found: {rel}"))
+            say(err(f"[{index}/{total}] FAILED: no video stream found: {rel}"))
+            view.finish(index - 1, FAILED, "no video stream")
             LOGGER.error("No video stream found: %s", input_file)
             failed += 1
             finish("validate", "FAILED", None, "no video stream found")
@@ -160,7 +184,8 @@ def process_files(
         try:
             output_file = make_output_path(input_root, output_root, input_file, rules)
         except RuntimeError as exc:
-            print(err(f"[{index}/{total}] FAILED: {exc}"))
+            say(err(f"[{index}/{total}] FAILED: {exc}"))
+            view.finish(index - 1, FAILED, str(exc))
             LOGGER.exception("Could not resolve output path for %s", input_file)
             failed += 1
             finish("resolve-output", "FAILED", None, str(exc))
@@ -168,7 +193,8 @@ def process_files(
 
         audio_keep = selected_audio_streams(media, rules)
         if rules.audio_mode != AUDIO_NONE and not audio_keep:
-            print(warn(f"[{index}/{total}] SKIP no matching audio selected: {rel}"))
+            say(warn(f"[{index}/{total}] SKIP no matching audio selected: {rel}"))
+            view.finish(index - 1, SKIPPED, "no matching audio")
             LOGGER.warning("No matching audio selected: %s", input_file)
             no_audio += 1
             finish("select-audio", "NO_AUDIO_MATCH", output_file,
@@ -176,7 +202,8 @@ def process_files(
             continue
 
         if output_file.exists() and not rules.overwrite:
-            print(warn(f"[{index}/{total}] SKIP exists: {rel}"))
+            say(warn(f"[{index}/{total}] SKIP exists: {rel}"))
+            view.finish(index - 1, SKIPPED, "output exists")
             LOGGER.warning("Skip existing output: %s", output_file)
             skipped += 1
             finish("skip-existing", "SKIPPED", output_file,
@@ -187,26 +214,33 @@ def process_files(
         reasons = remux_needed_reasons(media, rules, audio_keep, subtitles_keep)
 
         if not reasons:
-            print(info(f"[{index}/{total}] Copying unchanged: {rel}"))
-            print(dim("          no remux needed"))
+            say(info(f"[{index}/{total}] Copying unchanged: {rel}"))
+            say(dim("          no remux needed"))
+            view.start(index - 1, f"copying unchanged: {rel}")
             try:
                 copy_returncode = copy_video_without_remux(
                     input_file, output_file, rules.overwrite, run_started_at,
                     operation_timeout_seconds(),
+                    on_progress=lambda done: view.update(index - 1, completed=done),
+                    on_percent=lambda pct: view.update(index - 1, percent=pct),
                 )
             except OSError as exc:
                 failed += 1
                 LOGGER.exception("Could not copy unchanged video %s -> %s", input_file, output_file)
-                print(err(f"          FAILED to copy unchanged file: {exc}"))
+                say(err(f"          FAILED to copy unchanged file: {exc}"))
+                view.finish(index - 1, FAILED, str(exc))
                 finish("copy-unchanged", "FAILED", output_file, str(exc))
                 continue
 
             succeeded += 1
             copied_unchanged += 1
             output_files_for_size.append(output_file)
-            delta = print_file_size_change(input_file, output_file)
+            delta = file_size_delta(input_file, output_file)
+            if not view.enabled:
+                print_file_size_change(input_file, output_file)
+                print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
+            view.finish(index - 1, DONE, format_size_difference(delta))
             finish("copy-unchanged", "OK", output_file, "no remux needed", copy_returncode, delta)
-            print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
             continue
 
         # FFmpeg writes to a sibling partial file, which is renamed onto the real
@@ -214,8 +248,8 @@ def process_files(
         # leaves no half-remuxed file, and any previous output stays intact.
         remux_target = partial_path(output_file)
         cmd, audio_keep, subtitles_keep = build_ffmpeg_command(input_file, remux_target, media, rules)
-        print(info(f"[{index}/{total}] Remuxing: {rel}"))
-        print(dim(
+        say(info(f"[{index}/{total}] Remuxing: {rel}"))
+        say(dim(
             f"          audio kept: {len(audio_keep)} | subtitles kept: {len(subtitles_keep)}"
             f" | attachments: {'yes' if rules.keep_attachments else 'no'}"
         ))
@@ -231,13 +265,22 @@ def process_files(
         except OSError as exc:
             failed += 1
             LOGGER.exception("Could not create output folder for %s", output_file)
-            print(err(f"          FAILED to create output folder: {exc}"))
+            say(err(f"          FAILED to create output folder: {exc}"))
+            view.finish(index - 1, FAILED, str(exc))
             finish("prepare-output", "FAILED", output_file, str(exc))
             continue
 
         remux_target.unlink(missing_ok=True)
+        view.start(index - 1, f"remuxing: {rel}")
+
+        def report_ffmpeg(chunk: str, position: int = index - 1) -> None:
+            percent = read_ffmpeg_percent(chunk, media.duration_seconds)
+            if percent is not None:
+                view.update(position, percent=percent)
+
         try:
-            proc = run_with_progress(cmd, run_started_at, operation_timeout_seconds())
+            proc = run_with_progress(cmd, run_started_at, operation_timeout_seconds(),
+                                     on_output=report_ffmpeg)
             if proc.returncode == 0 and remux_target.exists():
                 remux_target.replace(output_file)
         finally:
@@ -249,17 +292,23 @@ def process_files(
             succeeded += 1
             remuxed += 1
             output_files_for_size.append(output_file)
-            delta = print_file_size_change(input_file, output_file)
+            delta = file_size_delta(input_file, output_file)
+            if not view.enabled:
+                print_file_size_change(input_file, output_file)
+                print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
+            view.finish(index - 1, DONE, format_size_difference(delta))
             finish("remux", "OK", output_file, "; ".join(reasons), proc.returncode, delta)
-            print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
         else:
             failed += 1
             LOGGER.error("Remux failed: %s | returncode=%s", input_file, proc.returncode)
-            print(err("          FAILED"))
+            say(err("          FAILED"))
             if proc.stderr.strip():
-                print(proc.stderr.strip())
+                say(proc.stderr.strip())
+            view.finish(index - 1, FAILED, f"ffmpeg exit {proc.returncode}")
             finish("remux", "FAILED", output_file,
                    f"ffmpeg return code {proc.returncode}", proc.returncode)
+
+    view.close()
 
     if rules.copy_non_video_files:
         extra_copied, extra_skipped, extra_failed = copy_extra_files(input_root, output_root, rules)

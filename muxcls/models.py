@@ -35,6 +35,10 @@ class StreamInfo:
 class MediaFile:
     path: Path
     streams: List[StreamInfo]
+    # Container duration in seconds, when ffprobe reports one. FFmpeg's progress
+    # output gives a position on the timeline; without this there is nothing to
+    # turn that position into a percentage.
+    duration_seconds: Optional[float] = None
 
     @property
     def video_streams(self) -> List[StreamInfo]:
