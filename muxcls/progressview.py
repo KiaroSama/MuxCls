@@ -149,10 +149,10 @@ def bar(ratio: Optional[float], width: int, state: str) -> str:
     if ratio is None:
         # Unknown progress is drawn as an empty track, never as 0% - a copy that
         # cannot report bytes is not a copy that has done nothing.
-        return color(empty_char * width, C.GRAY)
+        return color(empty_char * width, C.BAR_TRACK)
     filled = int(ratio * width)
-    fill_color = C.SUMMARY_FAILED if state == FAILED else C.PROCESS_DONE if state == DONE else C.AQUA
-    return color(full_char * filled, fill_color) + color(empty_char * (width - filled), C.GRAY)
+    fill_color = C.BAR_FAIL if state == FAILED else C.BAR_FILL
+    return color(full_char * filled, fill_color) + color(empty_char * (width - filled), C.BAR_TRACK)
 
 
 def size_pair(completed: Optional[int], total: Optional[int]) -> str:
@@ -183,35 +183,36 @@ def stats_line(row: ProgressRow, width: int, show_elapsed: bool = True) -> str:
     if row.state == QUEUED:
         return (
             f"{bar(None, bar_width, QUEUED)} "
-            f"{color('Queued', C.GRAY)} | "
-            f"{color(format_stream_size(row.total) if row.total else '?', C.GRAY)} | "
-            f"{color(dash(), C.GRAY)} | "
-            f"{color('ETA', C.AMBER)} {color(dash(), C.GRAY)}"
+            f"{color('Queued', C.PROGRESS_MUTED)} | "
+            f"{color(format_stream_size(row.total) if row.total else '?', C.PROGRESS_MUTED)} | "
+            f"{color(dash(), C.PROGRESS_MUTED)} | "
+            f"{color('ETA', C.PROGRESS_ETA_LABEL)} {color(dash(), C.PROGRESS_MUTED)}"
         )
 
     percent_text = f"{ratio * 100:5.1f}%" if ratio is not None else " --.-%"
     line = (
         f"{bar(ratio, bar_width, row.state)} "
-        f"{color(percent_text, C.BOLD + C.PROCESS_DONE)} | "
-        f"{color(size_pair(row.completed or (row.total if row.state == DONE else 0), row.total), C.SKY)}"
+        f"{color(percent_text, C.PROGRESS_PERCENT)} | "
+        f"{color(size_pair(row.completed or (row.total if row.state == DONE else 0), row.total), C.PROGRESS_SIZE)}"
     )
 
     if row.state in (DONE, FAILED, SKIPPED):
         # The finished word takes the column a live row uses for its countdown;
-        # "ETA Done" would be a label with nothing behind it.
-        word, tint = {DONE: ("Done", C.PROCESS_DONE),
-                      FAILED: ("Failed", C.SUMMARY_FAILED),
-                      SKIPPED: ("Skipped", C.AMBER)}[row.state]
+        # "ETA Done" would be a label with nothing behind it. Nothing else goes
+        # here: a leftover detail in this slot reads as the speed column that
+        # was removed.
+        word, tint = {DONE: ("Done", C.PROGRESS_DONE_WORD),
+                      FAILED: ("Failed", C.BAR_FAIL),
+                      SKIPPED: ("Skipped", C.PROGRESS_ETA_LABEL)}[row.state]
         line += f" | {color(word, tint)}"
-        if row.detail:
-            line += f" | {color(row.detail, C.GRAY)}"
     else:
         remaining = eta_seconds(ratio, row.started_at)
-        line += f" | {color('ETA', C.AMBER)} {color(format_eta(remaining), C.LAVENDER)}"
+        line += (f" | {color('ETA', C.PROGRESS_ETA_LABEL)} "
+                 f"{color(format_eta(remaining), C.PROGRESS_ETA_VALUE)}")
 
     if show_elapsed:
-        line += (f" | {color('Elapsed', C.SUMMARY_ELAPSED)} "
-                 f"{color(format_elapsed_time(row.live_elapsed()), C.SUMMARY_ELAPSED)}")
+        line += (f" | {color('Elapsed', C.PROGRESS_ELAPSED)} "
+                 f"{color(format_elapsed_time(row.live_elapsed()), C.PROGRESS_ELAPSED)}")
     return line
 
 
@@ -251,9 +252,12 @@ class ProgressView:
 
     def finish(self, index: int, state: str, detail: str = "") -> None:
         row = self.rows[index]
+        # Freeze the elapsed time BEFORE the state changes. live_elapsed() only
+        # measures from started_at while the row is ACTIVE, so setting the state
+        # first made every finished row report 00:00:00.
+        row.elapsed = row.live_elapsed()
         row.state = state
         row.detail = detail
-        row.elapsed = row.live_elapsed()
         row.started_at = None
         if state == DONE:
             row.percent = 100.0
@@ -280,24 +284,24 @@ class ProgressView:
 
         return (
             f"{bar(ratio, bar_width, ACTIVE)} "
-            f"{color(f'{ratio * 100:5.1f}%', C.BOLD + C.PROCESS_DONE)} | "
-            f"{color(size_pair(done_bytes, total_bytes), C.SKY)} | "
-            f"{color(f'{finished}/{total_files} files', C.GOLD)} | "
-            f"{color('ETA', C.AMBER)} {color(format_eta(remaining), C.LAVENDER)} | "
-            f"{color('Elapsed', C.SUMMARY_ELAPSED)} "
-            f"{color(format_elapsed_time(elapsed), C.SUMMARY_ELAPSED)}"
+            f"{color(f'{ratio * 100:5.1f}%', C.PROGRESS_PERCENT)} | "
+            f"{color(size_pair(done_bytes, total_bytes), C.PROGRESS_SIZE)} | "
+            f"{color(f'{finished}/{total_files} files', C.PROGRESS_OVERALL)} | "
+            f"{color('ETA', C.PROGRESS_ETA_LABEL)} {color(format_eta(remaining), C.PROGRESS_ETA_VALUE)} | "
+            f"{color('Elapsed', C.PROGRESS_ELAPSED)} "
+            f"{color(format_elapsed_time(elapsed), C.PROGRESS_ELAPSED)}"
         )
 
     def compose(self, width: int, height: int) -> List[str]:
         # Overall is its own labelled group, exactly like a file group, so the
         # two read as the same kind of thing.
-        lines = [color("Overall", C.BOLD + C.LAVENDER), self.overall_line(width), ""]
+        lines = [color("Overall", C.PROGRESS_OVERALL), self.overall_line(width), ""]
 
         groups: List[List[str]] = []
         for index, row in enumerate(self.rows, start=1):
-            name_color = C.GRAY if row.state == QUEUED else C.SKY
+            name_color = C.PROGRESS_MUTED if row.state == QUEUED else C.PROGRESS_SIZE
             groups.append([
-                color(f"File {index:02d}: ", C.BOLD + C.AZURE) + color(row.name, name_color),
+                color(f"File {index:02d}: ", C.PROGRESS_OVERALL) + color(row.name, name_color),
                 stats_line(row, width),
             ])
 
@@ -328,15 +332,15 @@ class ProgressView:
             if not shown:
                 shown = [first_active]
             if shown[0] > 0:
-                lines.append(color(f"... {shown[0]} file(s) above", C.GRAY))
+                lines.append(color(f"... {shown[0]} file(s) above", C.PROGRESS_MUTED))
             for i in shown:
                 lines.extend(groups[i])
             hidden_below = len(groups) - 1 - shown[-1]
             if hidden_below > 0:
-                lines.append(color(f"... +{hidden_below} more file(s) below", C.GRAY))
+                lines.append(color(f"... +{hidden_below} more file(s) below", C.PROGRESS_MUTED))
 
         if self.status:
-            lines.append(color(f"Status: {self.status}", C.GRAY))
+            lines.append(color(f"Status: {self.status}", C.PROGRESS_MUTED))
         return lines
 
     def render(self, force: bool = False) -> None:
