@@ -13,9 +13,15 @@ concurrency:
 
 jobs:
   test:
-    name: pytest (windows-latest)
-    runs-on: windows-latest
+    name: pytest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is the primary target (robocopy path); Linux proves the
+        # stdlib copy path that runs everywhere else.
+        os: [windows-latest, ubuntu-latest]
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -28,13 +34,19 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -r requirements-dev.txt
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg (Windows)
+        if: runner.os == 'Windows'
         run: choco install ffmpeg -y
+
+      - name: Install FFmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Compile check
         shell: pwsh
         run: |
-          $files = @("MuxCls.py") + (Get-ChildItem muxcls\*.py | ForEach-Object FullName)
+          # pwsh does not expand globs for a program, so build the list first.
+          $files = @("MuxCls.py") + (Get-ChildItem muxcls/*.py | ForEach-Object FullName)
           python -m py_compile @files
 
       - name: Entry-point smoke test

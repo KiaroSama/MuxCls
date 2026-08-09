@@ -50,7 +50,7 @@ def main_menu() -> None:
 
         if input_root is not None:
             print(info(f"Input from launcher/drag-drop: {input_root}"))
-            LOGGER.info("Input from args: %s", input_root)
+            LOGGER.debug("Input from args: %s", input_root)
             if not input_root.exists():
                 LOGGER.warning("Input path from args does not exist: %s", input_root)
                 print(err(f"Path does not exist: {input_root}"))
@@ -80,10 +80,26 @@ def main_menu() -> None:
         print(ok(f"Found {len(files)} video file(s)."))
         LOGGER.info("Found %s video file(s)", len(files))
 
-        media_files = scan_files(files)
+        scan = scan_files(files)
+        media_files = scan.files
         if not media_files:
             print(err("No files could be scanned successfully."))
             sys.exit(1)
+
+        if scan.failures:
+            # Never continue silently: a file that could not be probed would
+            # otherwise vanish from every count and from the final summary.
+            print(err(f"{len(scan.failures)} file(s) could not be read by ffprobe:"))
+            for path in scan.failures:
+                print(err(f"  {path}"))
+            if not ask_yes_no(
+                f"Continue with the {len(media_files)} file(s) that scanned successfully?",
+                False,
+                allow_back=False,
+            ):
+                LOGGER.warning("User stopped after %s probe failure(s)", len(scan.failures))
+                print(warn("Stopped. Fix or remove those files and run MuxCls again."))
+                sys.exit(1)
 
         print_scan_report(media_files, input_root)
         print_unique_summary(media_files)
@@ -160,7 +176,7 @@ def main_menu() -> None:
                 print(warn("Cancelled."))
                 return
 
-            process_files(media_files, input_root, output_root, rules)
+            process_files(media_files, input_root, output_root, rules, scan.failures)
             print_ready_for_next_task()
             restart_input = True
             break

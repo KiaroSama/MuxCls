@@ -82,10 +82,43 @@ def unique_directory_path(path: Path) -> Path:
     raise RuntimeError(f"Could not find available output folder for: {path}")
 
 
+def output_base_conflict(input_root: Path, output_base: Path) -> Optional[str]:
+    """Return why this output base is unusable, or None when it is safe.
+
+    A folder run walks its input recursively, so writing anywhere inside that
+    input turns this run's output into the next run's input. Single-file runs
+    are unaffected: they only touch the one file they were given, so writing
+    beside it stays allowed.
+    """
+    if not input_root.is_dir():
+        return None
+
+    try:
+        source = input_root.resolve()
+        base = output_base.resolve()
+    except OSError:
+        return None
+
+    # Path comparison is case-insensitive on Windows and case-sensitive on
+    # POSIX, which is what each filesystem actually means by "the same folder".
+    if base == source:
+        return "The output folder cannot be the input folder itself."
+    if path_is_under(base, source):
+        return "The output folder cannot be inside the input folder."
+    return None
+
+
 def resolve_output_root(input_root: Path, output_base: Path, rules: SelectionRules) -> Path:
+    conflict = output_base_conflict(input_root, output_base)
+    if conflict:
+        raise RuntimeError(conflict)
+
     if input_root.is_dir():
         folder_name = sanitize_filename_part(f"{input_root.name} {selection_suffix(rules)}")
-        return unique_directory_path(output_base / folder_name)
+        target = output_base / folder_name
+        # Overwrite means "use the folder I asked for"; otherwise never touch an
+        # existing output folder and pick the next free name.
+        return target if rules.overwrite else unique_directory_path(target)
 
     return output_base
 

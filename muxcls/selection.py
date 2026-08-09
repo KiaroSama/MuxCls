@@ -283,6 +283,13 @@ def previous_exact_step(step: int, subtitle_mode: str) -> int:
     return 0
 
 
+def should_skip_audio_selection(media_files: List[MediaFile]) -> bool:
+    """Only a set with no audio at all can skip the audio menu. Even a single
+    track is a real choice: the user may want to drop it (AUDIO_NONE), and that
+    option only exists inside the menu."""
+    return max_stream_count_for(media_files, "audio") == 0
+
+
 def configure_rules_advanced(
     media_files: List[MediaFile],
     initial: Optional[SelectionRules] = None,
@@ -290,11 +297,8 @@ def configure_rules_advanced(
 ) -> SelectionRules:
     audio_language_options = stream_languages_for(media_files, "audio")
     subtitle_language_options = stream_languages_for(media_files, "subtitle")
-    # Skip audio selection only when no file has more than one audio track.
-    # A single language across multiple tracks is not enough to skip: the user
-    # may still want to choose which of those tracks to keep.
     max_audio_tracks = max_stream_count_for(media_files, "audio")
-    skip_audio_selection = max_audio_tracks <= 1
+    skip_audio_selection = should_skip_audio_selection(media_files)
     skip_subtitle_selection = not subtitle_language_options
     LOGGER.info(
         "Advanced rules setup: audio_languages=%s max_audio_tracks=%d skip_audio_selection=%s "
@@ -346,11 +350,8 @@ def configure_rules_advanced(
         )
 
     if initial is None and skip_audio_selection:
-        if audio_language_options:
-            audio_mode = AUDIO_BY_LANGUAGE
-            audio_languages = list(audio_language_options)
-        else:
-            audio_mode = AUDIO_NONE
+        # Nothing in the scan has audio, so there is nothing to choose from.
+        audio_mode = AUDIO_NONE
     if initial is None and skip_subtitle_selection:
         subtitle_mode = SUBTITLE_NONE
         keep_attachments = False
@@ -358,11 +359,7 @@ def configure_rules_advanced(
     if initial is None and skip_audio_selection:
         print()
         print("Configure Output Rules:")
-        if audio_language_options:
-            print(format_prompt_label(f"Audio languages found: {format_text_list(audio_language_options)}"))
-            print(info("Only one audio track found; keeping all audio."))
-        else:
-            print(warn("No audio streams found; selecting no audio."))
+        print(warn("No audio streams found; selecting no audio."))
         if skip_subtitle_selection:
             print(warn("No subtitle streams found; skipping subtitle selection."))
 

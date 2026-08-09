@@ -6,6 +6,7 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from .constants import EXIT_TOKENS, VIDEO_EXTENSIONS
 from .colors import C, PROMPT_DEFAULT_COLOR, YES_NO_HINT_COLOR, color, dim, err, info, warn
 from .textutil import color_example_text, color_found_text, format_index_list, format_prompt_label, normalize_language_code, parse_csv_int, parse_csv_text
+from .output import output_base_conflict
 
 class MenuExit(Exception):
     pass
@@ -141,6 +142,12 @@ def ask_output_base_path(input_root: Path) -> Path:
         path = normalize_path_text(raw)
         if path.exists() and not path.is_dir():
             print(err(f"Output path exists but is not a folder: {path}"))
+            continue
+
+        conflict = output_base_conflict(input_root, path)
+        if conflict:
+            print(err(conflict))
+            print(warn("Otherwise this run's output becomes the next run's input."))
             continue
 
         if path.suffix.lower() in VIDEO_EXTENSIONS:
