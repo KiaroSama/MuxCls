@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.5.0**
+Current version: **1.6.0**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
@@ -30,12 +30,13 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Shows each file's own size change as soon as that file finishes, next to the run total at the end.
 - Shows a per-file elapsed timer that starts at zero for each file, alongside the elapsed time of the whole run.
 - Draws a live progress view on a terminal: an overall bar plus one row per file with its own bar, percentage, how much of it is done out of its total, an ETA and its elapsed time. Percentages are real - for a remux, FFmpeg's reported position on the timeline, or the bytes it reports written when the material carries no usable timestamps; for a copy, Robocopy's own percentage or the bytes written.
+- Can read the finished output back after a run and report the streams each file ended up with.
 - Writes detailed UTF-8 run logs to the local `Logs` folder, including per-file action summaries.
 - Includes a PowerShell launcher (`run.ps1`) and an optional installer that registers a `MuxCls` command.
 
 ## Requirements
 
-- Python 3 available as `py -3` or `python`.
+- Python 3.11 or newer, available as `py -3` or `python`. CI runs the suite on 3.11, 3.12 and 3.13.
 - FFmpeg installed and available in `PATH` as both `ffmpeg` and `ffprobe`.
 - No external Python packages are required.
 

@@ -14,7 +14,7 @@ from .media import find_non_video_extensions, find_video_files, require_tool, sc
 from .output import resolve_output_root
 from .reporting import print_header, print_scan_report, print_setting, print_unique_summary
 from .selection import configure_rules, revisit_last_rule_step
-from .processing import print_ready_for_next_task, process_files
+from .processing import print_ready_for_next_task, process_files, verify_output
 
 def main_menu() -> None:
     enable_windows_ansi()
@@ -176,7 +176,14 @@ def main_menu() -> None:
                 print(warn("Cancelled."))
                 return
 
-            process_files(media_files, input_root, output_root, rules, scan.failures)
+            summary = process_files(media_files, input_root, output_root, rules, scan.failures)
+
+            # Reading the finished files back is the only check that the output
+            # carries the streams that were asked for. It costs one ffprobe per
+            # file, so it is offered rather than always run, and defaults to no.
+            if summary.succeeded and ask_yes_no("Verify the output folder now?", False, allow_back=False):
+                verify_output(output_root, rules)
+
             print_ready_for_next_task()
             restart_input = True
             break
