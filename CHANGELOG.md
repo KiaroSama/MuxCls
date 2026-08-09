@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.2] - 2026-08-09
+
+### Fixed
+
+- Non-video file copying is now bounded and cancellable like everything else. The standard-library backend receives the operation timeout, and the Robocopy backend runs through the same cancellable runner as the rest instead of an unbounded call, so a timeout or `Ctrl+C` stops and reaps it.
+- A failed or cancelled non-video copy no longer leaves a truncated file in the output. Destinations this run created but did not finish writing are removed, and reported as failed rather than copied; a destination that already existed is never touched.
+
+### Changed
+
+- The copy timeout regression test no longer races the machine. It drives a fake clock, so it proves the timeout path on any runner speed instead of assuming a slow one.
+
 ## [1.4.1] - 2026-08-09
 
 ### Fixed

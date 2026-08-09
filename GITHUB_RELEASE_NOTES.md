@@ -1,8 +1,8 @@
-# MuxCls v1.4.1
+# MuxCls v1.4.2
 
-Version tag suggestion: `v1.4.1`
+Version tag suggestion: `v1.4.2`
 
-MuxCls v1.4.1 fixes a set of stream-handling, data-safety and process-control bugs, adds per-file progress
+MuxCls v1.4.2 fixes a set of stream-handling, data-safety and process-control bugs, adds per-file progress
 reporting, and runs on Linux and macOS as well as Windows.
 
 MuxCls still uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video,
@@ -12,6 +12,8 @@ audio, or subtitles.
 
 - A failed or cancelled copy can no longer destroy the output it was replacing. Copies stage
   into a private folder or temporary file and are renamed into place only when complete.
+- Non-video file copying is bounded and cancellable like everything else, and a failed or
+  cancelled non-video copy no longer leaves a truncated file in the output.
 - A failed remux no longer leaves a partial file behind; FFmpeg writes to a sibling partial
   file that is renamed onto the real output only on success.
 - Overwrite really replaces non-video files, including a destination Robocopy would consider
@@ -52,12 +54,12 @@ audio, or subtitles.
 
 ## Changed
 
-- Updated runtime version to `1.4.1`.
+- Updated runtime version to `1.4.2`.
 - Logs are much quieter by default: UTC timestamps, `INFO` level, captured command output only
   for failures, and per-file paths relative to the run roots.
 - File copy backends moved into `muxcls/copying.py`, separating run orchestration from
   platform-specific copying.
-- The test suite grew to 71 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
+- The test suite grew to 76 tests and CI runs it on `windows-latest` and `ubuntu-latest`.
 
 ## Requirements
 
@@ -88,7 +90,7 @@ On Linux and macOS, run `python MuxCls.py`.
 
 - No changes to output behavior, file formats, or configuration are required.
 - Output produced by earlier versions may have the default flag on the first kept track rather
-  than the track the source marked. Re-running those files with v1.4.1 reproduces the source
+  than the track the source marked. Re-running those files with v1.4.2 reproduces the source
   flags.
 - On Windows, run `.\run.ps1` from the project folder, or run `.\Install-MuxClsCommand.ps1`
   once to register the PowerShell `MuxCls` command.
