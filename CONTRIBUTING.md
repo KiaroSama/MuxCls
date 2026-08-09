@@ -43,6 +43,8 @@ python -m pytest tests -v
 - End-to-end tests in `tests/test_processing_e2e.py` require `ffmpeg`/`ffprobe`; they skip
   automatically if unavailable. The robocopy overwrite tests additionally require Windows.
 - Add or update tests for any behavior you change or fix.
+- For changes the automated suite cannot judge (console output, menu flow, progress
+  display), walk the matching section of `docs/MANUAL_QA.html` and record the result there.
 
 CI (`.github/workflows/tests.yml`) runs the same suite on `windows-latest` and
 `ubuntu-latest` for every push and pull request.
