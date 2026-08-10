@@ -14,15 +14,14 @@ is what a log or a CI transcript wants to read anyway.
 """
 from __future__ import annotations
 
-import re
 import shutil
 import sys
 import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
-from .colors import C, color
-from .textutil import format_elapsed_time, format_stream_size
+from .colors import ANSI_PATTERN, C, color
+from .textutil import format_elapsed_time, format_stream_size, set_block_owns_screen
 
 QUEUED = "queued"
 ACTIVE = "active"
@@ -32,8 +31,6 @@ SKIPPED = "skipped"
 
 MAX_FRAMES_PER_SECOND = 8.0
 
-
-ANSI_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def visible_length(text: str) -> int:
@@ -240,6 +237,8 @@ class ProgressView:
         self._last_frame = 0.0
         self._min_interval = 1.0 / MAX_FRAMES_PER_SECOND
         self._cursor_hidden = False
+        # Claim the screen so nothing else writes underneath the block.
+        set_block_owns_screen(self.enabled)
 
     # -- row lifecycle ----------------------------------------------------
     def start(self, index: int, status: str = "") -> None:
@@ -383,6 +382,9 @@ class ProgressView:
         sys.stdout.flush()
 
     def close(self) -> None:
+        # Released even when disabled, so a redirected run cannot leave the flag
+        # set for whatever draws next.
+        set_block_owns_screen(False)
         if not self.enabled:
             return
         self.status = ""

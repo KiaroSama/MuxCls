@@ -124,6 +124,23 @@ def format_elapsed_time(seconds: float) -> str:
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
+# Exactly one thing can own the cursor. The live progress block takes it for the
+# length of a run; the per-command timer below has to stay quiet while it does.
+# A line printed underneath the block scrolls the terminal by one, and the
+# block's next repaint - which moves up by the number of lines it drew last
+# time - then lands one line short and strands its top row on screen.
+_BLOCK_OWNS_SCREEN = False
+
+
+def set_block_owns_screen(owned: bool) -> None:
+    global _BLOCK_OWNS_SCREEN
+    _BLOCK_OWNS_SCREEN = owned
+
+
+def block_owns_screen() -> bool:
+    return _BLOCK_OWNS_SCREEN
+
+
 class ProgressPrinter:
     """One rewritable console line showing how long the current file has been
     running, next to how long the whole run has been going. Each file gets its
@@ -139,7 +156,7 @@ class ProgressPrinter:
         self._enabled = sys.stdout.isatty()
 
     def tick(self, force: bool = False) -> None:
-        if not self._enabled:
+        if not self._enabled or block_owns_screen():
             return
         elapsed = int(time.perf_counter() - self.started_at)
         if elapsed == self._last_second and not force:
@@ -159,7 +176,7 @@ class ProgressPrinter:
 
     def close(self) -> None:
         """Erase the progress line. Safe to call more than once."""
-        if not self._enabled:
+        if not self._enabled or block_owns_screen():
             return
         blank = "\r" + (" " * terminal_width()) + "\r"
         sys.stdout.write(blank + "\n" if self._line_open else blank)

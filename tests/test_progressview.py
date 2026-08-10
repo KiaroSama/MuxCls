@@ -217,3 +217,58 @@ def test_a_row_that_only_knows_a_percentage_still_shows_how_much_is_done():
     line = ProgressView([row], enabled=False).compose(99, 24)[-1]
 
     assert "391 KB / 977 KB" in line, "the size must follow the bar, not sit at 0 B"
+
+
+# --- who owns the screen ---------------------------------------------------
+
+def test_the_per_command_timer_stays_quiet_while_the_block_draws(monkeypatch):
+    """`run_with_progress` builds a ProgressPrinter for every command it runs.
+    On a terminal the block is drawing at the same time, and a line printed
+    underneath it scrolls the terminal by one - so the block's next repaint,
+    which moves up by the number of lines it drew last time, lands one line
+    short and strands its top row. The symptom is a duplicated `Overall` label
+    with a stray `Elapsed .. | Total ..` line below the block.
+    """
+    from muxcls.textutil import ProgressPrinter, block_owns_screen
+
+    console = FakeConsole()
+    monkeypatch.setattr("sys.stdout", console)
+    view = ProgressView(_rows(2))
+    assert view.enabled and block_owns_screen()
+
+    printer = ProgressPrinter(total_started_at=0.0)
+    before = console.getvalue()
+    printer.tick(force=True)
+    printer.close()
+
+    assert console.getvalue() == before, "nothing may be written under the block"
+    view.close()
+    assert not block_owns_screen(), "the screen must be released when the run ends"
+
+
+def test_the_timer_still_works_when_no_block_is_drawing(monkeypatch):
+    # Without the view - a single ffprobe at scan time, say - the timer is the
+    # only progress the user gets, so it must not be silenced globally.
+    from muxcls.textutil import ProgressPrinter, set_block_owns_screen
+
+    set_block_owns_screen(False)
+    console = FakeConsole()
+    monkeypatch.setattr("sys.stdout", console)
+
+    printer = ProgressPrinter(total_started_at=0.0)
+    printer.tick(force=True)
+
+    assert "Elapsed" in console.getvalue()
+    printer.close()
+
+
+def test_a_redirected_run_releases_the_screen_too(monkeypatch):
+    stream = io.StringIO()          # no isatty -> the view never draws
+    monkeypatch.setattr("sys.stdout", stream)
+    from muxcls.textutil import block_owns_screen
+
+    view = ProgressView(_rows(1))
+    assert not view.enabled
+    view.close()
+
+    assert not block_owns_screen()

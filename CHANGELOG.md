@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.7.0] - 2026-08-10
+
+### Fixed
+
+- A stray `Elapsed .. | Total ..` line was drawn underneath the live progress block, and the block's top row appeared twice. One cause: `run_with_progress` builds a per-command timer that enabled itself on any terminal - including while the block was drawing. Its line scrolled the terminal by one, so the block's next repaint moved up one line short and stranded its top row. The block now owns the screen for the length of a run and the timer stays quiet while it does.
+- `.test/demo_ui.py` could not have shown that bug: it drove the progress view directly and never built the per-command timer a real run builds. It now does, so the demo reproduces the real interaction rather than an idealised one.
+
+### Changed
+
+- The log records what the console showed. It previously held eight lines for a five-minute session: the scan report, the stream inventory, every menu and every answer were on the terminal only, which made a log collected from another machine nearly useless. Startup now also records the resolved path and version of `ffmpeg`/`ffprobe`, the working directory, the console encoding and size, and the effective environment settings. Console text is formatted once and written twice - coloured to the terminal, stripped for the log - so the two cannot drift apart.
+
 ## [1.6.3] - 2026-08-10
 
 ### Changed

@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
 from .constants import EXIT_TOKENS, VIDEO_EXTENSIONS
-from .colors import C, PROMPT_DEFAULT_COLOR, YES_NO_HINT_COLOR, color, dim, err, info, warn
+from .logsetup import LOGGER
+from .colors import C, PROMPT_DEFAULT_COLOR, YES_NO_HINT_COLOR, color, dim, err, info, plain, warn
 from .textutil import color_example_text, color_found_text, format_index_list, format_prompt_label, normalize_language_code, parse_csv_int, parse_csv_text
 from .output import output_base_conflict
 
@@ -36,22 +37,34 @@ def prompt_text(prompt: str, default: Optional[str], allow_back: bool, show_defa
 
 
 def read_rendered_input(rendered_prompt: str, default: Optional[str], allow_back: bool) -> str:
+    """Ask, and record both the question and the answer.
+
+    A log that shows only the outcome cannot explain how a run reached it. Every
+    prompt the user saw and every key they pressed goes in, so a log from another
+    machine reads as the session that actually happened.
+    """
+    label = plain(rendered_prompt).strip().rstrip(":").strip()
     while True:
         raw = input(rendered_prompt).strip()
         lowered = raw.lower()
 
         if lowered in EXIT_TOKENS:
+            LOGGER.info("Prompt: %s -> quit", label)
             raise MenuExit
 
         if raw == "0":
             if allow_back:
+                LOGGER.info("Prompt: %s -> back", label)
                 raise MenuBack
+            LOGGER.warning("Prompt: %s -> 0 refused (back is not available here)", label)
             print(warn("Back is not available here."))
             continue
 
         if not raw and default is not None:
+            LOGGER.info("Prompt: %s -> (empty, default %r)", label, default)
             return default
 
+        LOGGER.info("Prompt: %s -> %r", label, raw)
         return raw
 
 
@@ -236,10 +249,13 @@ def ask_numbered_menu(
     if leading_blank:
         print()
     print(f"{title}:")
+    LOGGER.info("Menu: %s (default %s)", title, default)
     for note in notes or ():
         print(format_prompt_label(note))
+        LOGGER.info("  %s", plain(note))
     for value, text in options:
         print(numbered_option(value, text, value == default))
+        LOGGER.info("  %s. %s%s", value, text, " (default)" if value == default else "")
 
     rendered_prompt = numbered_choice_prompt(prompt, allow_back, colon_after_prompt)
     while True:

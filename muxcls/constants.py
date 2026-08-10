@@ -18,7 +18,7 @@ ROBOCOPY_BIN = "robocopy"
 IS_WINDOWS = os.name == "nt"
 
 
-APP_VERSION = "1.6.3"
+APP_VERSION = "1.7.0"
 
 
 # Probing a single file is a metadata read, so it should never take minutes.
