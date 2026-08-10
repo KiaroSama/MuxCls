@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.7.0**
+Current version: **1.7.1**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
@@ -27,7 +27,7 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Can preserve metadata, chapters, stream labels, language tags, and MKV font attachments when selected.
 - Can edit kept output audio and subtitle stream language/title metadata without changing the source files.
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
-- Shows each file's own size change as soon as that file finishes, next to the run total at the end.
+- Shows each file's own size change at the end of its progress row as soon as that file finishes, next to the run total at the end.
 - Shows a per-file elapsed timer that starts at zero for each file, alongside the elapsed time of the whole run.
 - Draws a live progress view on a terminal: an overall bar plus one row per file with its own bar, percentage, how much of it is done out of its total, an ETA and its elapsed time. Percentages are real - for a remux, FFmpeg's reported position on the timeline, or the bytes it reports written when the material carries no usable timestamps; for a copy, Robocopy's own percentage or the bytes written.
 - Can read the finished output back after a run and report the streams each file ended up with.

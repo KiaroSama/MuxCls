@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.1] - 2026-08-10
+
+### Changed
+
+- A finished row ends with what the file gained or lost again: `... | Done | Elapsed 00:00:04 | -31.24 MB`. It sits after `Elapsed` rather than beside the state word - in that earlier position it occupied the column a live row uses for its countdown and read as the transfer-speed field that was removed, which is why it was taken out. The bar reserves another twelve columns so the figure cannot be truncated away on a narrower terminal.
+
 ## [1.7.0] - 2026-08-10
 
 ### Fixed

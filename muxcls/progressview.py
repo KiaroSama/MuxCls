@@ -143,10 +143,14 @@ def dash() -> str:
 
 
 def bar_width_for(width: int) -> int:
-    """Leave room for percent, size pair, state/ETA and Elapsed. EVdlc reserves
-    80 columns for the same layout; this one also carries a detail column, so it
-    keeps a little more back and caps the bar narrower."""
-    return max(14, min(28, width - 78))
+    """Leave room for percent, size pair, state/ETA, Elapsed and the size change.
+
+    EVdlc reserves 80 columns for the same layout. This one also ends a finished
+    row with what the file gained or lost (` | -31.2 MB`), so it holds back
+    another dozen - otherwise the truncation that keeps rows inside the terminal
+    would eat exactly the figure that was just added.
+    """
+    return max(14, min(28, width - 90))
 
 
 def bar(ratio: Optional[float], width: int, state: str) -> str:
@@ -204,9 +208,7 @@ def stats_line(row: ProgressRow, width: int, show_elapsed: bool = True) -> str:
 
     if row.state in (DONE, FAILED, SKIPPED):
         # The finished word takes the column a live row uses for its countdown;
-        # "ETA Done" would be a label with nothing behind it. Nothing else goes
-        # here: a leftover detail in this slot reads as the speed column that
-        # was removed.
+        # "ETA Done" would be a label with nothing behind it.
         word, tint = {DONE: ("Done", C.PROGRESS_DONE_WORD),
                       FAILED: ("Failed", C.BAR_FAIL),
                       SKIPPED: ("Skipped", C.PROGRESS_ETA_LABEL)}[row.state]
@@ -219,6 +221,14 @@ def stats_line(row: ProgressRow, width: int, show_elapsed: bool = True) -> str:
     if show_elapsed:
         line += (f" | {color('Elapsed', C.PROGRESS_ELAPSED)} "
                  f"{color(format_elapsed_time(row.live_elapsed()), C.PROGRESS_ELAPSED)}")
+
+    # What the file gained or lost, last on the row. It goes after Elapsed
+    # rather than beside the state word: in that earlier position it sat where a
+    # live row shows its countdown and read as the transfer-speed column that
+    # was removed. At the end it is plainly what it is - the result of the file.
+    if row.detail and row.state in (DONE, FAILED, SKIPPED):
+        tint = C.SUMMARY_SIZE_DIFF if row.state == DONE else C.PROGRESS_MUTED
+        line += f" | {color(row.detail, tint)}"
     return line
 
 
