@@ -14,7 +14,7 @@ from .muxlogic import build_ffmpeg_command, remux_needed_reasons, selected_audio
 from .output import display_path, make_output_path, partial_path, path_total_size
 from .copying import copy_extra_files, copy_video_without_remux
 from .progressview import DONE, FAILED, SKIPPED, ProgressRow, ProgressView
-from .reporting import print_header
+from .reporting import echo, print_header
 
 
 class ProcessSummary(NamedTuple):
@@ -359,23 +359,23 @@ def print_run_summary(summary: ProcessSummary, output_root: Path) -> None:
     formatted_size_delta = format_size_difference(summary.size_delta)
 
     print()
-    print(separator_line(C.BOLD + C.DONE_HEADER))
-    print(color(center_for_terminal("All Done"), C.BOLD + C.DONE_HEADER))
-    print(separator_line(C.BOLD + C.DONE_HEADER))
+    echo(separator_line(C.BOLD + C.DONE_HEADER))
+    echo(color(center_for_terminal("All Done"), C.BOLD + C.DONE_HEADER))
+    echo(separator_line(C.BOLD + C.DONE_HEADER))
 
-    print(color(f"Total:   {summary.total}", C.BOLD + C.LAVENDER))
-    print(color(f"OK:      {summary.succeeded}", C.BOLD + C.GREEN))
-    print(color(f"Remuxed: {summary.remuxed}", C.BOLD + C.AZURE))
-    print(color(f"Copied unchanged: {summary.copied_unchanged}", C.BOLD + C.MINT))
-    print(color(f"Skipped: {summary.skipped}", C.BOLD + C.AMBER))
-    print(color(f"No audio match: {summary.no_audio}", C.BOLD + C.YELLOW))
-    print(color(f"Failed:  {summary.failed}", C.BOLD + C.SUMMARY_FAILED))
-    print(color(f"Extra files copied:  {summary.extra_copied}", C.BOLD + C.AQUA))
-    print(color(f"Extra files skipped: {summary.extra_skipped}", C.BOLD + C.GOLD))
-    print(color(f"Extra files failed:  {summary.extra_failed}", C.BOLD + C.SUMMARY_EXTRA_FAILED))
-    print(color(f"Output:  {output_root}", C.BOLD + C.SKY))
-    print(color(f"Size difference: {formatted_size_delta}", C.BOLD + C.SUMMARY_SIZE_DIFF))
-    print(color(f"Elapsed {format_elapsed_time(summary.elapsed)}", C.BOLD + C.SUMMARY_ELAPSED))
+    echo(color(f"Total:   {summary.total}", C.BOLD + C.LAVENDER))
+    echo(color(f"OK:      {summary.succeeded}", C.BOLD + C.GREEN))
+    echo(color(f"Remuxed: {summary.remuxed}", C.BOLD + C.AZURE))
+    echo(color(f"Copied unchanged: {summary.copied_unchanged}", C.BOLD + C.MINT))
+    echo(color(f"Skipped: {summary.skipped}", C.BOLD + C.AMBER))
+    echo(color(f"No audio match: {summary.no_audio}", C.BOLD + C.YELLOW))
+    echo(color(f"Failed:  {summary.failed}", C.BOLD + C.SUMMARY_FAILED))
+    echo(color(f"Extra files copied:  {summary.extra_copied}", C.BOLD + C.AQUA))
+    echo(color(f"Extra files skipped: {summary.extra_skipped}", C.BOLD + C.GOLD))
+    echo(color(f"Extra files failed:  {summary.extra_failed}", C.BOLD + C.SUMMARY_EXTRA_FAILED))
+    echo(color(f"Output:  {output_root}", C.BOLD + C.SKY))
+    echo(color(f"Size difference: {formatted_size_delta}", C.BOLD + C.SUMMARY_SIZE_DIFF))
+    echo(color(f"Elapsed {format_elapsed_time(summary.elapsed)}", C.BOLD + C.SUMMARY_ELAPSED))
 
     LOGGER.info(
         "Processing done: total=%s ok=%s remuxed=%s copied_unchanged=%s skipped=%s "
@@ -411,14 +411,14 @@ def verify_output(root: Path, rules: Optional[SelectionRules] = None) -> None:
 
     files = find_video_files(root)
     if not files:
-        print(warn("No video files found."))
+        echo(warn("No video files found."))
         return
 
     scan = scan_files(files)
     if scan.failures:
-        print(err(f"{len(scan.failures)} output file(s) could not be read back:"))
+        echo(err(f"{len(scan.failures)} output file(s) could not be read back:"))
         for path in scan.failures:
-            print(err(f"  {display_path(root, path)}"))
+            echo(err(f"  {display_path(root, path)}"))
 
     for media in scan.files:
         rel = display_path(root, media.path)
@@ -432,7 +432,7 @@ def verify_output(root: Path, rules: Optional[SelectionRules] = None) -> None:
         status_color = C.GREEN if video_count >= 1 and (audio_count >= 1 or not audio_expected) else C.YELLOW
         audio_langs = format_language_list((s.language for s in media.audio_streams), status_color) if audio_count else "-"
         subtitle_langs = format_language_list((s.language for s in media.subtitle_streams), status_color) if subtitle_count else "-"
-        print(
+        echo(
             color(f"{rel} | video={video_count} | audio={audio_count} [", status_color)
             + audio_langs
             + color(f"] | subs={subtitle_count} [", status_color)

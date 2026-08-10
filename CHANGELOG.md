@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.3] - 2026-08-11
+
+### Changed
+
+- The output-verification report and the run-summary block now reach the log too. Found by reading a real 22-file log: the verification header and its re-scan were recorded, but not one of its per-file lines - so the log could show that the output had been checked without recording what the check found. Both blocks live in `processing.py`, which the 1.7.0 logging work had not covered.
+
 ## [1.7.2] - 2026-08-10
 
 ### Fixed

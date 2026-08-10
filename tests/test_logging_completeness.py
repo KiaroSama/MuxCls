@@ -192,3 +192,45 @@ def test_a_missing_tool_is_an_error_not_a_note(logged, monkeypatch):
     monkeypatch.setattr(media.shutil, "which", lambda _b: None)
     assert media.require_tool("ffmpeg") is False
     assert any("not found" in line for line in logged)
+
+
+# --- the two report blocks that live in processing.py ----------------------
+
+def test_the_verification_report_reaches_the_log(logged, tmp_path, monkeypatch, capsys):
+    """Found in a real 22-file run: the verification header and its re-scan were
+    logged, but not one of its per-file lines - so a log could show that the
+    output was checked without recording what the check found."""
+    from muxcls import processing
+    from muxcls.media import ScanResult
+
+    out = tmp_path / "Out"
+    out.mkdir()
+    media = MediaFile(path=out / "E01.mkv", streams=[
+        StreamInfo(index=0, codec_type="video"),
+        StreamInfo(index=1, codec_type="audio", language="jpn"),
+    ])
+    monkeypatch.setattr(processing, "find_video_files", lambda _r: [media.path])
+    monkeypatch.setattr(processing, "scan_files", lambda _f: ScanResult(files=[media], failures=[]))
+
+    processing.verify_output(out)
+    body = "\n".join(logged)
+
+    assert "Verify Output Folder" in body
+    assert "E01.mkv" in body and "video=1" in body and "audio=1" in body
+    assert "\x1b" not in body
+
+
+def test_the_run_summary_block_reaches_the_log(logged, tmp_path, capsys):
+    from muxcls.processing import ProcessSummary, print_run_summary
+
+    summary = ProcessSummary(
+        total=22, succeeded=22, remuxed=22, copied_unchanged=0, skipped=0, no_audio=0,
+        failed=0, extra_copied=0, extra_skipped=0, extra_failed=0,
+        size_delta=-813886054, elapsed=112.0, results=[],
+    )
+    print_run_summary(summary, tmp_path / "Out")
+    body = "\n".join(logged)
+
+    assert "Total:" in body and "22" in body
+    assert "Size difference" in body and "776" in body, "the headline number belongs in the log"
+    assert "Elapsed" in body
