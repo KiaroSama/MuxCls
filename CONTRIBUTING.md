@@ -46,8 +46,22 @@ python -m pytest tests -v
 - For changes the automated suite cannot judge (console output, menu flow, progress
   display), walk the matching section of `docs/MANUAL_QA.html` and record the result there.
 
-CI (`.github/workflows/tests.yml`) runs the same suite on `windows-latest` and
-`ubuntu-latest` for every push and pull request.
+CI also lints, typechecks and measures coverage. Run the same three locally
+before opening a pull request:
+
+```powershell
+python -m ruff check muxcls tests MuxCls.py
+python -m mypy muxcls MuxCls.py --ignore-missing-imports
+python -m pytest tests --cov=muxcls --cov-report=term-missing
+```
+
+The coverage number is reported, not enforced - the missing-line list is the
+useful part, since it names the paths nothing exercises.
+
+CI (`.github/workflows/tests.yml`) runs the suite on `windows-latest` and
+`ubuntu-latest` across Python 3.11-3.13 for every push and pull request, and
+lints/typechecks once on the primary combination. A second workflow
+(`.github/workflows/codeql.yml`) runs CodeQL analysis.
 
 ## What not to commit
 

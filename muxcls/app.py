@@ -123,6 +123,13 @@ def main_menu() -> None:
                 except MenuBack:
                     LOGGER.info("Back requested at output folder; returning to previous rule step")
                     print(warn("Back. Returning to previous step."))
+                    # The enclosing loop configures the rules before the output
+                    # prompt is ever reached, so this is never None here. The
+                    # check is what makes that invariant visible instead of
+                    # assumed - and it is a guard, not an assertion, so it
+                    # survives `python -O`.
+                    if rules is None:
+                        break
                     try:
                         rules = revisit_last_rule_step(media_files, rules)
                     except MenuBack:
@@ -131,7 +138,9 @@ def main_menu() -> None:
                         rules = None
                         break
 
-            if output_base is None:
+            # Both are set unless Back unwound the loop above, in which case the
+            # outer loop starts over at the step the user went back to.
+            if output_base is None or rules is None:
                 continue
 
             try:

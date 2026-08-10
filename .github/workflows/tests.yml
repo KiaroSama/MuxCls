@@ -50,6 +50,17 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      # Lint and typecheck run once, on the primary combination only: they read
+      # the same source on every runner, so repeating them across the matrix
+      # would spend five jobs proving one thing.
+      - name: Lint
+        if: runner.os == 'Linux' && matrix.python-version == '3.11'
+        run: python -m ruff check muxcls tests MuxCls.py
+
+      - name: Typecheck
+        if: runner.os == 'Linux' && matrix.python-version == '3.11'
+        run: python -m mypy muxcls MuxCls.py --ignore-missing-imports
+
       - name: Compile check
         shell: pwsh
         run: |
@@ -67,4 +78,11 @@ jobs:
           }
 
       - name: Run test suite
-        run: python -m pytest tests -v
+        run: python -m pytest tests -v --cov=muxcls --cov-report=term-missing
+
+      # The coverage number is reported, never enforced. A threshold here would
+      # reward tests written to move a percentage; the missing-line list is what
+      # actually tells a reviewer which paths nothing exercises.
+      - name: Coverage summary
+        if: runner.os == 'Linux' && matrix.python-version == '3.11'
+        run: python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
