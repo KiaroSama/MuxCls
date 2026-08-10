@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.6.0**
+Current version: **1.6.1**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 

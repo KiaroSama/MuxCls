@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.1] - 2026-08-10
+
+### Changed
+
+- CI now lints (`ruff`), typechecks (`mypy`) and reports coverage. Both linters run once on the primary matrix combination rather than on all five, since they read the same source everywhere. Coverage is reported, never gated on a threshold.
+- `muxcls/reporting.py` used one loop variable for two summaries keyed differently, which made the second loop read as though it indexed the first one's keys.
+- `muxcls/app.py` guards the two places where the configured rules could not be proven non-empty. They are guards rather than assertions, so they survive `python -O`.
+
+### Added
+
+- Tests for `muxcls/app.py`, which had none: the tool-missing refusals, the no-video-files and unscannable-file paths, the probe-failure prompt, the confirmation gate, the new verification prompt, and the exit code each of `quit`, Back, Ctrl+C and an unexpected error produces.
+- Tests for the advanced selection flow's Back map, the metadata-edit prompt, the selection-style menu and the revisit entry point.
+- Coverage went from 71% to 78% overall; `app.py` from 0% to 79% and `selection.py` from 59% to 70%. The suite is now 251 tests.
+
 ## [1.6.0] - 2026-08-10
 
 ### Added

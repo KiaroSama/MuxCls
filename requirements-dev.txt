@@ -4,3 +4,9 @@
 # guess: 9.0.3 is what local runs use, and CI resolves this to the newest 9.x
 # on every run, so both ends of the range get exercised.
 pytest>=9.0.3
+
+# Lint, typecheck and coverage. CI runs all three; the coverage number is
+# reported rather than gated on a threshold.
+pytest-cov>=7.1.0
+ruff>=0.15.14
+mypy>=2.1.0

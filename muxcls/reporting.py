@@ -174,16 +174,19 @@ def print_stream_choices(label: str, streams: List[StreamInfo], include_index: b
         index_summary: Dict[Tuple[int, str, str, str], Tuple[int, int, str, str, str]] = {}
         for stream in streams:
             add_stream_index_summary(index_summary, stream)
-        for key in sorted(index_summary):
-            count, index, lang, title, codec = index_summary[key]
+        # Distinct loop variables: the two summaries are keyed differently, and
+        # reusing one name for both makes the second loop look like it indexes
+        # the first summary's keys.
+        for index_key in sorted(index_summary):
+            count, index, lang, title, codec = index_summary[index_key]
             print(f"  {format_stream_index_summary_row(count, index, lang, title, codec)}")
         return
 
     title_summary: Dict[Tuple[str, str, str], Tuple[int, str, str, str]] = {}
     for stream in streams:
         add_stream_summary(title_summary, stream)
-    for key in sorted(title_summary):
-        count, lang, title, codec = title_summary[key]
+    for title_key in sorted(title_summary):
+        count, lang, title, codec = title_summary[title_key]
         print(f"  {format_stream_summary_row(count, lang, title, codec)}")
 
 
