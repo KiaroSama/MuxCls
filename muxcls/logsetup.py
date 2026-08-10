@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -10,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Sequence
 
-from .constants import APP_VERSION
+from .constants import APP_VERSION, OPERATION_TIMEOUT_ENV_VAR
 from .colors import warn
 
 LOGGER = logging.getLogger("MuxCls")
@@ -91,7 +92,26 @@ def setup_logging() -> Optional[Path]:
             platform.platform(),
             LOG_FILE,
         )
-        LOGGER.debug("Command line: %s", command_to_text(sys.argv))
+        # The environment a run happened in is not reconstructable afterwards,
+        # and it is what most "it behaved differently on my machine" reports turn
+        # out to be about.
+        LOGGER.info("Command line: %s", command_to_text(sys.argv))
+        LOGGER.info("Working directory: %s", Path.cwd())
+        LOGGER.info(
+            "Console: tty=%s encoding=%s size=%sx%s | filesystem encoding=%s",
+            getattr(sys.stdout, "isatty", lambda: False)(),
+            getattr(sys.stdout, "encoding", "?"),
+            shutil.get_terminal_size((80, 24)).columns,
+            shutil.get_terminal_size((80, 24)).lines,
+            sys.getfilesystemencoding(),
+        )
+        LOGGER.info(
+            "Settings: %s=%s | %s=%s",
+            DEBUG_ENV_VAR,
+            os.environ.get(DEBUG_ENV_VAR, "(unset)"),
+            OPERATION_TIMEOUT_ENV_VAR,
+            os.environ.get(OPERATION_TIMEOUT_ENV_VAR, "(unset, default 3h)"),
+        )
         return LOG_FILE
     except OSError as exc:
         print(warn(f"Logging disabled: {exc}"))

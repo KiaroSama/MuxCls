@@ -251,10 +251,27 @@ def run_with_progress(
     return subprocess.CompletedProcess(list(args), returncode, stdout, stderr)
 
 
+def tool_version(binary: str) -> str:
+    """First line of `<tool> -version`, or why it could not be read.
+
+    Which build of FFmpeg ran is the first question any report about a bad
+    output raises, and it is not something the user can reconstruct later.
+    """
+    try:
+        proc = subprocess.run(
+            [binary, "-version"], capture_output=True, text=True,
+            timeout=PROBE_TIMEOUT_SECONDS, stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"unavailable ({exc})"
+    first = (proc.stdout or proc.stderr or "").strip().splitlines()
+    return first[0] if first else "unknown"
+
+
 def require_tool(binary: str) -> bool:
     found = shutil.which(binary)
     if found:
-        LOGGER.debug("Tool check: %s -> %s", binary, found)
+        LOGGER.info("Tool: %s -> %s | %s", binary, found, tool_version(binary))
     else:
         LOGGER.error("Required tool not found in PATH: %s", binary)
     return found is not None

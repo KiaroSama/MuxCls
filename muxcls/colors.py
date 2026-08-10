@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 ENABLE_COLORS = True
@@ -180,6 +181,22 @@ SETTING_TRUE_COLOR = C.BOLD + C.SETTING_TRUE
 
 
 SETTING_FALSE_COLOR = C.BOLD + C.SETTING_FALSE
+
+
+# Every escape sequence the console output can carry, not just colour: the log
+# has to strip cursor moves and clears too, or a progress frame would arrive as
+# unreadable control codes.
+ANSI_PATTERN = re.compile(r"\[[0-9;?]*[A-Za-z]")
+
+
+def plain(text: object) -> str:
+    """The same text with every escape sequence removed.
+
+    Console output is formatted once and then written twice - to the terminal
+    with colour, to the log without. Stripping here rather than formatting
+    twice is what keeps the two from drifting apart.
+    """
+    return ANSI_PATTERN.sub("", str(text))
 
 
 def color(text: object, code: str) -> str:

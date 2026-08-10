@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.6.3**
+Current version: **1.7.0**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
@@ -228,9 +228,21 @@ MuxCls creates a `Logs` folder next to `MuxCls.py` and writes one UTF-8 log file
 Logs\muxcls_2026-05-15_22-30-15_UTC.log
 ```
 
-Log timestamps are UTC. At the default level a log holds startup information, the resolved rules,
-one line per file with its status, action, size change, elapsed time and return code, plus the run
-summary. Failures also carry the captured command output.
+Log timestamps are UTC. At the default level the log records everything the console showed, so a
+log sent from another machine reads as the session that actually happened:
+
+- Startup: version, Python, OS, working directory, command line, console encoding and size, the
+  resolved path and reported version of `ffmpeg` and `ffprobe`, and the effective values of both
+  environment settings.
+- The full scan report - every file with each of its audio and subtitle streams, their index,
+  language, title, codec, channel count, default flag and size - followed by the unique-stream
+  summary.
+- Every menu with all of its options and which one was the default, every prompt, and the answer
+  given to it, including when Back or quit was pressed.
+- The confirmed rules, then one line per file with its status, action, size change, elapsed time
+  and return code, plus the run summary.
+
+Failures also carry the captured command output.
 
 Set the `MUXCLS_DEBUG` environment variable to `1` for a verbose log that also records every
 command line and the captured output of successful commands:
