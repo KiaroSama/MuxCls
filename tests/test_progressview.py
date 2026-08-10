@@ -15,7 +15,7 @@ from muxcls.progressview import (
     ACTIVE, DONE, FAILED, SKIPPED,
     ProgressRow, ProgressView, bar, truncate_visible, visible_length,
 )
-from muxcls.colors import C, color
+from muxcls.colors import C, color, plain
 
 
 class FakeConsole(io.StringIO):
@@ -62,16 +62,41 @@ def test_a_finished_row_keeps_the_time_it_took():
     assert "00:00:12" in "\n".join(view.compose(99, 24))
 
 
-def test_a_finished_row_shows_no_extra_column_after_its_state():
-    # A leftover detail here reads as the speed column that was removed.
+def test_a_finished_row_ends_with_what_the_file_gained_or_lost():
+    """The size change is the result of the file, so it goes last. It used to
+    sit between the state word and Elapsed, where a live row shows its
+    countdown - in that slot it read as the transfer-speed column that was
+    removed, which is why it was taken out before being put back here."""
     row = _rows(1)[0]
     view = ProgressView([row], enabled=False)
     view.start(0)
     view.finish(0, DONE, "-65.12 MB")
-    line = view.compose(99, 24)[-1]
+    line = plain(view.compose(120, 24)[-1])
 
-    assert "Done" in line
-    assert "-65.12 MB" not in line
+    assert "Done" in line and "-65.12 MB" in line
+    assert line.index("Elapsed") < line.index("-65.12 MB"), "the size change comes after Elapsed"
+    assert line.index("Done") < line.index("Elapsed")
+
+
+def test_a_finished_row_without_a_detail_ends_at_elapsed():
+    row = _rows(1)[0]
+    view = ProgressView([row], enabled=False)
+    view.start(0)
+    view.finish(0, DONE)
+
+    assert plain(view.compose(120, 24)[-1]).rstrip().endswith("00:00:00")
+
+
+def test_a_full_finished_row_still_fits_the_terminal():
+    # The extra column must not push the row past the width; truncation would
+    # eat the figure it was added for.
+    row = ProgressRow(name="[Cleo]Death_March_kara_Hajimaru_Isekai_Kyousoukyoku_-_01.mkv",
+                      total=307_000_000, completed=307_000_000, percent=100.0,
+                      state=DONE, detail="-31.24 MB", elapsed=4.0)
+    for width in (100, 110, 120, 140):
+        lines = ProgressView([row], enabled=False).compose(width, 24)
+        assert all(visible_length(line) <= width for line in lines), f"row overflows at {width}"
+        assert "-31.24 MB" in plain(lines[-1]), f"the size change was truncated at {width}"
 
 
 def test_the_bar_uses_the_shared_progress_palette():
