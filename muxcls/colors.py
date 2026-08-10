@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 ENABLE_COLORS = True
 
@@ -208,7 +209,11 @@ def dim(text: object) -> str:
 
 
 def enable_windows_ansi() -> None:
-    if os.name != "nt":
+    # sys.platform rather than os.name, deliberately: a type checker narrows on
+    # sys.platform, so everything below is understood as Windows-only code and
+    # `ctypes.windll` - which does not exist elsewhere - stops being an error
+    # when the project is checked on Linux. Same runtime meaning either way.
+    if sys.platform != "win32":
         return
 
     try:
