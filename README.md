@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.6.2**
+Current version: **1.6.3**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
@@ -215,6 +215,7 @@ is a thin entry point that imports and runs `muxcls.app.main`.
 | `muxcls/progressview.py` | The live progress block: bars, per-file rows, overall line, in-place repaint. |
 | `muxcls/reporting.py` | Scan reports, unique-stream summaries, and selection previews. |
 | `muxcls/selection.py` | Interactive rule configuration (advanced and exact modes). |
+| `muxcls/metadata_edits.py` | The metadata-edit step: what the kept output streams are labelled. |
 | `muxcls/copying.py` | File copy backends: robocopy on Windows, Python standard library elsewhere. |
 | `muxcls/processing.py` | Per-file processing decisions, remuxing, run summary, and verification. |
 | `muxcls/app.py` | Main menu, top-level flow, and program entry (`main`). |
