@@ -129,6 +129,7 @@ def process_files(
     copied_unchanged = 0
     remuxed = 0
     output_files_for_size: List[Path] = []
+    total_size_delta = 0
     file_results: List[Dict[str, str]] = []
     index = 0
 
@@ -236,6 +237,7 @@ def process_files(
             copied_unchanged += 1
             output_files_for_size.append(output_file)
             delta = file_size_delta(input_file, output_file)
+            total_size_delta += delta
             if not view.enabled:
                 print_file_size_change(input_file, output_file)
                 print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
@@ -300,6 +302,7 @@ def process_files(
             remuxed += 1
             output_files_for_size.append(output_file)
             delta = file_size_delta(input_file, output_file)
+            total_size_delta += delta
             if not view.enabled:
                 print_file_size_change(input_file, output_file)
                 print(color(center_for_terminal("Done"), PROCESS_DONE_COLOR))
@@ -324,13 +327,14 @@ def process_files(
         LOGGER.debug("Non-video file copy skipped by user setting")
 
     elapsed = time.perf_counter() - run_started_at
-    if input_root.is_dir():
-        original_total_size = path_total_size(input_root, exclude_paths=[output_root])
-        output_total_size = path_total_size(output_root)
-    else:
-        original_total_size = path_total_size(input_root)
-        output_total_size = sum(path_total_size(path) for path in output_files_for_size)
-    size_delta = output_total_size - original_total_size
+    # The run total is the sum of the per-file changes, not the difference
+    # between the two trees. Comparing trees counts every input that produced no
+    # output - a failed file, a skip, a no-audio-match - as if all of its bytes
+    # had been saved, which overstates the saving in exactly the runs where
+    # something went wrong. Measured on a 3-file run with one failure: the tree
+    # comparison reported -63.07 KB against a real -36.80 KB, the difference
+    # being the untouched failed file byte for byte.
+    size_delta = total_size_delta
 
     summary = ProcessSummary(
         total=total,

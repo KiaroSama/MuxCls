@@ -262,3 +262,96 @@ def test_a_remux_that_reports_a_timestamp_still_prefers_it(series, tmp_path, mon
     )
 
     assert seen == [(25.0, None)]
+
+
+# --- the run total: sum of the per-file changes, not a tree comparison ------
+
+def _ffmpeg_writing(monkeypatch, output_bytes: bytes):
+    """Stand in for FFmpeg: write an output of a chosen size, then succeed."""
+    def fake(cmd, *_a, **_kw):
+        target = Path(cmd[-1])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(output_bytes)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(processing, "run_with_progress", fake)
+
+
+def test_the_total_is_the_sum_of_the_per_file_changes(series, tmp_path, monkeypatch):
+    for name in ("E01.mkv", "E02.mkv"):
+        path = series / name
+        path.write_bytes(b"i" * 1000)
+    media = [_remuxable(series / "E01.mkv"), _remuxable(series / "E02.mkv")]
+    _ffmpeg_writing(monkeypatch, b"o" * 600)
+
+    summary = processing.process_files(
+        media, series, tmp_path / "Out",
+        _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"]),
+    )
+
+    assert summary.succeeded == 2
+    assert summary.size_delta == -800, "two files, 400 bytes smaller each"
+
+
+def test_a_failed_file_is_not_counted_as_a_saving(series, tmp_path, monkeypatch):
+    """Comparing the input tree against the output tree counts every input that
+    produced no output as if all of its bytes had been saved. Measured on a real
+    3-file run with one failure: -63.07 KB reported against a real -36.80 KB,
+    the difference being the untouched failed file byte for byte. That is
+    backwards - it overstates the saving in exactly the runs that went wrong.
+    """
+    good = series / "E01.mkv"
+    good.write_bytes(b"i" * 1000)
+    broken = _placeholder(series, "audio_only.mkv")
+    broken.write_bytes(b"x" * 5000)
+    media = [
+        _remuxable(good),
+        # No video stream: this one fails validation and is never written.
+        MediaFile(path=broken, streams=[StreamInfo(index=0, codec_type="audio", language="jpn")]),
+    ]
+    _ffmpeg_writing(monkeypatch, b"o" * 600)
+
+    summary = processing.process_files(
+        media, series, tmp_path / "Out",
+        _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"]),
+    )
+
+    assert (summary.succeeded, summary.failed) == (1, 1)
+    assert summary.size_delta == -400, "only the file that was actually remuxed counts"
+
+
+def test_a_file_skipped_for_no_matching_audio_is_not_counted_either(series, tmp_path, monkeypatch):
+    good = series / "E01.mkv"
+    good.write_bytes(b"i" * 1000)
+    english_only = _placeholder(series, "E02.mkv")
+    english_only.write_bytes(b"x" * 5000)
+    media = [
+        _remuxable(good),
+        MediaFile(path=english_only, streams=[
+            StreamInfo(index=0, codec_type="video"),
+            StreamInfo(index=1, codec_type="audio", language="eng"),
+        ]),
+    ]
+    _ffmpeg_writing(monkeypatch, b"o" * 600)
+
+    summary = processing.process_files(
+        media, series, tmp_path / "Out",
+        _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"]),
+    )
+
+    assert summary.no_audio == 1
+    assert summary.size_delta == -400
+
+
+def test_a_run_where_nothing_succeeded_reports_no_change(series, tmp_path, monkeypatch):
+    broken = _placeholder(series, "audio_only.mkv")
+    broken.write_bytes(b"x" * 5000)
+    media = [MediaFile(path=broken, streams=[StreamInfo(index=0, codec_type="audio")])]
+
+    summary = processing.process_files(
+        media, series, tmp_path / "Out",
+        _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"]),
+    )
+
+    assert summary.failed == 1
+    assert summary.size_delta == 0, "nothing was written, so nothing was saved"

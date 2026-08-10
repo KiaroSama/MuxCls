@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.2] - 2026-08-10
+
+### Fixed
+
+- `Size difference` in the run summary counted every input that produced no output - a failed file, a skip, a no-audio-match - as if all of its bytes had been saved. It compared the whole input tree against the whole output tree, so an untouched file appeared as a pure reduction. Measured on a 3-file run with one failure: `-63.07 KB` reported against a real `-36.80 KB`, the difference being the failed file byte for byte. The total is now the sum of the per-file changes, which are and always were correct.
+
 ## [1.7.1] - 2026-08-10
 
 ### Changed
