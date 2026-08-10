@@ -8,5 +8,10 @@ pytest>=9.0.3
 # Lint, typecheck and coverage. CI runs all three; the coverage number is
 # reported rather than gated on a threshold.
 pytest-cov>=7.1.0
-ruff>=0.15.14
-mypy>=2.1.0
+
+# The linters are pinned to a compatible release, not a floor. A new ruff adds
+# rules to its default set, so an open range breaks CI on code nobody touched -
+# which is exactly what happened when these were first added. Bump these
+# deliberately, run them locally, then push.
+ruff~=0.15.14
+mypy~=2.1.0
