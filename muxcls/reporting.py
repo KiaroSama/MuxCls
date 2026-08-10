@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .constants import AUDIO_ALL, AUDIO_BY_INDEX, AUDIO_BY_LANGUAGE, AUDIO_BY_TITLE, SUBTITLE_ALL, SUBTITLE_BY_INDEX, SUBTITLE_BY_LANGUAGE, SUBTITLE_BY_TITLE
-from .colors import C, FILE_LINE_COLOR, HEADER_COLOR, SETTING_AUDIO_COLOR, SETTING_FALSE_COLOR, SETTING_INPUT_PATH_COLOR, SETTING_LABEL_COLOR, SETTING_MODE_COLOR, SETTING_OUTPUT_BASE_COLOR, SETTING_OUTPUT_ROOT_COLOR, SETTING_SUBTITLE_COLOR, SETTING_TRUE_COLOR, SETTING_VALUE_COLOR, color, dim, info, warn
+from .colors import C, FILE_LINE_COLOR, SCAN_SEPARATOR_COLOR, HEADER_COLOR, SETTING_AUDIO_COLOR, SETTING_FALSE_COLOR, SETTING_INPUT_PATH_COLOR, SETTING_LABEL_COLOR, SETTING_MODE_COLOR, SETTING_OUTPUT_BASE_COLOR, SETTING_OUTPUT_ROOT_COLOR, SETTING_SUBTITLE_COLOR, SETTING_TRUE_COLOR, SETTING_VALUE_COLOR, color, dim, info, warn
 from .models import MediaFile, StreamInfo, StreamMetadataEdit
-from .textutil import center_for_terminal, display_language, format_language_list, format_stream, is_unknown_language, language_color, normalize_language_code, separator_line, terminal_separator
+from .textutil import center_for_terminal, display_language, format_language_list, format_stream, language_color, normalize_language_code, separator_line
 from .muxlogic import text_matches_any
 from .output import display_path
 
@@ -76,7 +76,7 @@ def print_scan_report(media_files: List[MediaFile], root: Path) -> None:
 
         print()
         if i > 1:
-            print(terminal_separator())
+            print(separator_line(SCAN_SEPARATOR_COLOR))
         print(color(f"File: {rel}", FILE_LINE_COLOR))
 
         audio = media.audio_streams
@@ -228,17 +228,6 @@ def matching_streams_for_selection(
     return []
 
 
-def matching_streams_for_media(
-    media: MediaFile,
-    codec_type: str,
-    mode: str,
-    languages: Optional[List[str]] = None,
-    titles: Optional[List[str]] = None,
-    indexes: Optional[List[int]] = None,
-) -> List[StreamInfo]:
-    return matching_streams_for_selection([media], codec_type, mode, languages, titles, indexes)
-
-
 def print_selection_preview(
     label: str,
     media_files: List[MediaFile],
@@ -249,7 +238,7 @@ def print_selection_preview(
     indexes: Optional[List[int]] = None,
 ) -> None:
     selected_by_file = [
-        (media, matching_streams_for_media(media, codec_type, mode, languages, titles, indexes))
+        (media, matching_streams_for_selection([media], codec_type, mode, languages, titles, indexes))
         for media in media_files
     ]
     streams = [stream for _, matches in selected_by_file for stream in matches]
@@ -335,15 +324,6 @@ def max_stream_count_for(media_files: List[MediaFile], codec_type: str) -> int:
         for media in media_files
     ]
     return max(counts) if counts else 0
-
-
-def has_unknown_language(media_files: List[MediaFile], codec_type: Optional[str] = None) -> bool:
-    return any(
-        (codec_type is None or stream.codec_type == codec_type)
-        and is_unknown_language(stream.language)
-        for media in media_files
-        for stream in media.streams
-    )
 
 
 def metadata_edit_match_text(edit: StreamMetadataEdit) -> str:

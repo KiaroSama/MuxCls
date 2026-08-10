@@ -6,7 +6,7 @@ import time
 from typing import Iterable, List, Optional, Sequence
 
 from .constants import UNKNOWN_LANGUAGE_DISPLAY, UNKNOWN_LANGUAGE_INPUTS
-from .colors import C, EXAMPLE_TEXT_COLOR, FOUND_DETAIL_VALUE_COLOR, FOUND_LABEL_COLOR, FOUND_VALUE_COLOR, HEADER_SEPARATOR_COLOR, LANGUAGE_COLORS, SCAN_SEPARATOR_COLOR, UNKNOWN_LANGUAGE_COLOR, color, warn
+from .colors import C, EXAMPLE_TEXT_COLOR, FOUND_DETAIL_VALUE_COLOR, FOUND_LABEL_COLOR, FOUND_VALUE_COLOR, HEADER_SEPARATOR_COLOR, LANGUAGE_COLORS, UNKNOWN_LANGUAGE_COLOR, color, warn
 from .logsetup import LOGGER
 from .models import StreamInfo
 
@@ -231,10 +231,6 @@ def language_color(language: str) -> str:
     if normalized == "und":
         return UNKNOWN_LANGUAGE_COLOR
     return LANGUAGE_COLORS[sum(ord(ch) for ch in normalized) % len(LANGUAGE_COLORS)]
-
-
-def terminal_separator() -> str:
-    return separator_line(SCAN_SEPARATOR_COLOR)
 
 
 def format_index_list(indexes: List[int]) -> str:

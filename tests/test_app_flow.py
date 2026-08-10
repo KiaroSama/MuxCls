@@ -8,7 +8,6 @@ of those branches was invisible to the suite.
 Nothing here runs ffmpeg, ffprobe or robocopy - the seams at the edge of the
 module are patched, and what is tested is the decision each answer leads to.
 """
-import builtins
 
 import pytest
 
@@ -16,17 +15,6 @@ from muxcls import app
 from muxcls.media import ScanResult
 from muxcls.models import MediaFile, SelectionRules, StreamInfo
 from muxcls.processing import ProcessSummary
-
-
-def _answers(monkeypatch, *values):
-    queue = list(values)
-
-    def fake_input(_prompt=""):
-        if not queue:
-            raise AssertionError("the code asked for more input than the test provided")
-        return queue.pop(0)
-
-    monkeypatch.setattr(builtins, "input", fake_input)
 
 
 def _rules() -> SelectionRules:
@@ -95,10 +83,10 @@ def test_a_missing_ffprobe_stops_too(monkeypatch, capsys):
     assert "ffprobe was not found" in capsys.readouterr().out
 
 
-def test_a_folder_with_no_video_files_stops_and_says_what_it_did_find(library, monkeypatch, capsys):
+def test_a_folder_with_no_video_files_stops_and_says_what_it_did_find(library, monkeypatch, answers, capsys):
     monkeypatch.setattr(app, "find_video_files", lambda _root: [])
     monkeypatch.setattr(app, "find_non_video_extensions", lambda _root: [".txt", ".7z"])
-    _answers(monkeypatch, str(library))
+    answers(str(library))
 
     with pytest.raises(SystemExit) as exit_info:
         app.main_menu()
@@ -109,9 +97,9 @@ def test_a_folder_with_no_video_files_stops_and_says_what_it_did_find(library, m
     assert ".7z" in out, "the extensions actually present are worth naming"
 
 
-def test_nothing_scannable_stops_the_run(library, monkeypatch, capsys):
+def test_nothing_scannable_stops_the_run(library, monkeypatch, answers, capsys):
     monkeypatch.setattr(app, "scan_files", lambda _f: ScanResult(files=[], failures=[library / "E01.mkv"]))
-    _answers(monkeypatch, str(library))
+    answers(str(library))
 
     with pytest.raises(SystemExit) as exit_info:
         app.main_menu()
@@ -121,14 +109,14 @@ def test_nothing_scannable_stops_the_run(library, monkeypatch, capsys):
 
 
 def test_declining_after_a_probe_failure_stops_rather_than_dropping_the_file(
-    library, monkeypatch, capsys,
+    library, monkeypatch, answers, capsys,
 ):
     """B-05: a file ffprobe cannot read must never vanish silently. The user is
     asked, and answering no ends the run instead of proceeding without it."""
     media = MediaFile(path=library / "E01.mkv", streams=[StreamInfo(index=0, codec_type="video")])
     monkeypatch.setattr(app, "scan_files",
                         lambda _f: ScanResult(files=[media], failures=[library / "broken.mkv"]))
-    _answers(monkeypatch, str(library), "n")
+    answers(str(library), "n")
 
     with pytest.raises(SystemExit) as exit_info:
         app.main_menu()
@@ -142,11 +130,11 @@ def test_declining_after_a_probe_failure_stops_rather_than_dropping_the_file(
 
 # --- the confirmation gate --------------------------------------------------
 
-def test_answering_no_at_the_confirmation_writes_nothing(library, monkeypatch, capsys):
+def test_answering_no_at_the_confirmation_writes_nothing(library, monkeypatch, answers, capsys):
     called = []
     monkeypatch.setattr(app, "process_files", lambda *a, **k: called.append(a) or _summary())
     # path -> output base (default) -> start processing? no
-    _answers(monkeypatch, str(library), "", "n")
+    answers(str(library), "", "n")
 
     app.main_menu()
 
@@ -154,8 +142,8 @@ def test_answering_no_at_the_confirmation_writes_nothing(library, monkeypatch, c
     assert "Cancelled" in capsys.readouterr().out
 
 
-def test_the_confirmation_lists_the_settings_before_asking(library, monkeypatch, capsys):
-    _answers(monkeypatch, str(library), "", "n")
+def test_the_confirmation_lists_the_settings_before_asking(library, answers, capsys):
+    answers(str(library), "", "n")
     app.main_menu()
 
     out = capsys.readouterr().out
@@ -165,13 +153,13 @@ def test_the_confirmation_lists_the_settings_before_asking(library, monkeypatch,
 
 # --- verification after a run ----------------------------------------------
 
-def test_a_successful_run_offers_to_verify_the_output(library, monkeypatch):
+def test_a_successful_run_offers_to_verify_the_output(library, monkeypatch, answers):
     verified = []
     monkeypatch.setattr(app, "process_files", lambda *a, **k: _summary(succeeded=1))
     monkeypatch.setattr(app, "verify_output", lambda root, rules: verified.append(root))
     monkeypatch.setattr(app, "print_ready_for_next_task", lambda: None)
     # path -> output base -> start? yes -> verify? yes -> next input: quit
-    _answers(monkeypatch, str(library), "", "", "y", "quit")
+    answers(str(library), "", "", "y", "quit")
 
     with pytest.raises(app.MenuExit):   # main() is what maps this to exit 0
         app.main_menu()
@@ -179,13 +167,13 @@ def test_a_successful_run_offers_to_verify_the_output(library, monkeypatch):
     assert len(verified) == 1, "answering yes must run the verification"
 
 
-def test_verification_is_skipped_by_default(library, monkeypatch):
+def test_verification_is_skipped_by_default(library, monkeypatch, answers):
     verified = []
     monkeypatch.setattr(app, "process_files", lambda *a, **k: _summary(succeeded=1))
     monkeypatch.setattr(app, "verify_output", lambda root, rules: verified.append(root))
     monkeypatch.setattr(app, "print_ready_for_next_task", lambda: None)
     # Enter at the verify prompt takes the default, which is no.
-    _answers(monkeypatch, str(library), "", "", "", "quit")
+    answers(str(library), "", "", "", "quit")
 
     with pytest.raises(app.MenuExit):
         app.main_menu()
@@ -193,13 +181,13 @@ def test_verification_is_skipped_by_default(library, monkeypatch):
     assert verified == [], "the default must not spend an ffprobe per output file"
 
 
-def test_a_run_that_produced_nothing_is_not_offered_verification(library, monkeypatch):
+def test_a_run_that_produced_nothing_is_not_offered_verification(library, monkeypatch, answers):
     verified = []
     monkeypatch.setattr(app, "process_files", lambda *a, **k: _summary(succeeded=0))
     monkeypatch.setattr(app, "verify_output", lambda root, rules: verified.append(root))
     monkeypatch.setattr(app, "print_ready_for_next_task", lambda: None)
     # No answer is scripted for a verify prompt: asking would raise.
-    _answers(monkeypatch, str(library), "", "", "quit")
+    answers(str(library), "", "", "quit")
 
     with pytest.raises(app.MenuExit):
         app.main_menu()

@@ -10,7 +10,6 @@ Also here: the metadata-edit prompt, the style menu that chooses between the two
 selection flows, and the revisit entry point used when Back is pressed at the
 output-folder step.
 """
-import builtins
 
 import pytest
 
@@ -24,17 +23,6 @@ from muxcls.selection import (
     kept_languages_for_metadata, previous_advanced_step, revisit_last_rule_step,
     subtitle_mode_needs_detail,
 )
-
-
-def _answers(monkeypatch, *values):
-    queue = list(values)
-
-    def fake_input(_prompt=""):
-        if not queue:
-            raise AssertionError("the code asked for more input than the test provided")
-        return queue.pop(0)
-
-    monkeypatch.setattr(builtins, "input", fake_input)
 
 
 @pytest.fixture
@@ -121,17 +109,17 @@ def test_back_from_the_first_step_stays_put():
 
 # --- metadata edits --------------------------------------------------------
 
-def test_declining_metadata_edits_returns_nothing(monkeypatch, dual_audio):
-    _answers(monkeypatch, "n")
+def test_declining_metadata_edits_returns_nothing(answers, dual_audio):
+    answers("n")
     assert ask_metadata_edits(dual_audio) == []
 
 
-def test_declining_clears_edits_that_were_already_set(monkeypatch, dual_audio):
+def test_declining_clears_edits_that_were_already_set(answers, dual_audio):
     """Answering no is a decision, not "leave it as it was" - otherwise Back
     into this prompt could never remove an edit that had been made."""
     existing = [StreamMetadataEdit(codec_type="audio", match_languages=["jpn"],
                                    language="jpn", title="Japanese")]
-    _answers(monkeypatch, "n")
+    answers("n")
 
     assert ask_metadata_edits(dual_audio, initial_edits=existing) == []
 
@@ -148,7 +136,7 @@ def test_the_languages_offered_come_from_the_streams_that_will_be_kept(dual_audi
 
 # --- the style menu --------------------------------------------------------
 
-def test_a_single_audio_language_skips_the_style_menu(monkeypatch, tmp_path):
+def test_a_single_audio_language_skips_the_style_menu(answers, tmp_path):
     """With one audio language there is nothing for exact-index mode to
     disambiguate, so the advanced flow is entered directly - no style prompt is
     scripted here, and asking would raise."""
@@ -156,16 +144,16 @@ def test_a_single_audio_language_skips_the_style_menu(monkeypatch, tmp_path):
         StreamInfo(index=0, codec_type="video"),
         StreamInfo(index=1, codec_type="audio", language="jpn"),
     ])]
-    _answers(monkeypatch, "4", "1", "", "", "", "", "", "", "")
+    answers("4", "1", "", "", "", "", "", "", "")
 
     rules = configure_rules(files)
 
     assert rules.selection_style != "exact"
 
 
-def test_two_audio_languages_offer_the_choice_of_style(monkeypatch, dual_audio):
+def test_two_audio_languages_offer_the_choice_of_style(answers, dual_audio):
     # "2" picks exact-index mode; then audio 2, subtitles 3, then the defaults.
-    _answers(monkeypatch, "2", "2", "3", "", "", "", "", "", "")
+    answers("2", "2", "3", "", "", "", "", "", "")
 
     rules = configure_rules(dual_audio)
 
@@ -175,11 +163,11 @@ def test_two_audio_languages_offer_the_choice_of_style(monkeypatch, dual_audio):
 
 # --- revisiting the last rule step -----------------------------------------
 
-def test_revisit_returns_to_the_exact_flow_for_exact_rules(monkeypatch, dual_audio):
+def test_revisit_returns_to_the_exact_flow_for_exact_rules(answers, dual_audio):
     """Back at the output-folder prompt must re-enter the flow the user was
     actually in, not the other one."""
     exact = _rules(audio_mode=AUDIO_BY_INDEX, audio_indexes=[2], selection_style="exact")
-    _answers(monkeypatch, "", "", "", "", "")
+    answers("", "", "", "", "")
 
     revisited = revisit_last_rule_step(dual_audio, exact)
 

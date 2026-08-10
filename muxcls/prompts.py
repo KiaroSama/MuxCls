@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from .constants import EXIT_TOKENS, VIDEO_EXTENSIONS
 from .colors import C, PROMPT_DEFAULT_COLOR, YES_NO_HINT_COLOR, color, dim, err, info, warn
@@ -14,20 +14,6 @@ class MenuExit(Exception):
 
 class MenuBack(Exception):
     pass
-
-
-def option_suffix(default: Optional[str], allow_back: bool, show_default: bool = True) -> str:
-    parts: List[str] = []
-    if default and show_default:
-        parts.append(f"[{default}]")
-
-    nav_parts: List[str] = []
-    nav_parts.append("quit=exit")
-    if allow_back:
-        nav_parts.append("back=0")
-    parts.append(f"{{{', '.join(nav_parts)}}}")
-
-    return " ".join(parts)
 
 
 def colored_option_suffix(default: Optional[str], allow_back: bool, show_default: bool = True) -> str:
@@ -221,15 +207,6 @@ def ask_yes_no(prompt: str, default: bool = True, allow_back: bool = True) -> bo
 def print_metadata_note() -> None:
     print("Metadata note:")
     print(dim("  Keeping metadata preserves supported titles, language tags, chapters, and stream labels."))
-
-
-def ask_choice(prompt: str, valid: Iterable[str], default: str, allow_back: bool = True) -> str:
-    valid_set = {v.lower() for v in valid}
-    while True:
-        raw = read_menu_input(prompt, default=default, allow_back=allow_back).lower()
-        if raw in valid_set:
-            return raw
-        print(warn(f"Invalid choice. Valid options: {', '.join(sorted(valid_set))}"))
 
 
 def numbered_option(value: str, text: str, is_default: bool) -> str:

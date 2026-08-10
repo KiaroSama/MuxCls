@@ -65,28 +65,27 @@ def partial_path(final: Path) -> Path:
     return final.with_name(f"{final.stem}{PARTIAL_MARKER}{final.suffix}")
 
 
-def unique_path(path: Path) -> Path:
+def unique_path(path: Path, is_directory: bool = False) -> Path:
+    """`name (2).mkv`, `name (3).mkv`, ... until one is free.
+
+    A folder numbers its whole name; a file numbers the stem so the extension
+    stays last.
+    """
     if not path.exists():
         return path
 
+    stem, suffix = (path.name, "") if is_directory else (path.stem, path.suffix)
     for counter in range(2, 10000):
-        candidate = path.with_name(f"{path.stem} ({counter}){path.suffix}")
+        candidate = path.with_name(f"{stem} ({counter}){suffix}")
         if not candidate.exists():
             return candidate
 
-    raise RuntimeError(f"Could not find available output path for: {path}")
+    kind = "folder" if is_directory else "path"
+    raise RuntimeError(f"Could not find available output {kind} for: {path}")
 
 
 def unique_directory_path(path: Path) -> Path:
-    if not path.exists():
-        return path
-
-    for counter in range(2, 10000):
-        candidate = path.with_name(f"{path.name} ({counter})")
-        if not candidate.exists():
-            return candidate
-
-    raise RuntimeError(f"Could not find available output folder for: {path}")
+    return unique_path(path, is_directory=True)
 
 
 def output_base_conflict(input_root: Path, output_base: Path) -> Optional[str]:

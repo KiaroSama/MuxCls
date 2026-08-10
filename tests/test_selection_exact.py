@@ -6,7 +6,6 @@
 tests drive the real prompts with scripted input; nothing here touches a file
 or spawns a process.
 """
-import builtins
 
 import pytest
 
@@ -18,17 +17,6 @@ from muxcls.models import MediaFile, StreamInfo
 from muxcls.selection import (
     ask_keep_indexes, configure_rules_exact, previous_exact_step,
 )
-
-
-def _answers(monkeypatch, *values):
-    queue = list(values)
-
-    def fake_input(_prompt=""):
-        if not queue:
-            raise AssertionError("the code asked for more input than the test provided")
-        return queue.pop(0)
-
-    monkeypatch.setattr(builtins, "input", fake_input)
 
 
 @pytest.fixture
@@ -45,8 +33,8 @@ def two_audio_two_subs(tmp_path):
 
 # --- ask_keep_indexes -----------------------------------------------------
 
-def test_an_index_list_is_kept_verbatim(monkeypatch):
-    _answers(monkeypatch, "1,3")
+def test_an_index_list_is_kept_verbatim(answers):
+    answers("1,3")
     mode, indexes = ask_keep_indexes(
         "Audio", [1, 2, 3], exact_mode=AUDIO_BY_INDEX, all_mode=AUDIO_ALL, none_mode=AUDIO_NONE)
 
@@ -55,8 +43,8 @@ def test_an_index_list_is_kept_verbatim(monkeypatch):
 
 
 @pytest.mark.parametrize("typed", ["all", "a", "*", "ALL"])
-def test_the_all_shorthands(monkeypatch, typed):
-    _answers(monkeypatch, typed)
+def test_the_all_shorthands(answers, typed):
+    answers(typed)
     mode, indexes = ask_keep_indexes(
         "Audio", [1, 2], exact_mode=AUDIO_BY_INDEX, all_mode=AUDIO_ALL, none_mode=AUDIO_NONE)
 
@@ -64,25 +52,25 @@ def test_the_all_shorthands(monkeypatch, typed):
 
 
 @pytest.mark.parametrize("typed", ["none", "n", "no", "remove", "-", "NONE"])
-def test_the_none_shorthands(monkeypatch, typed):
-    _answers(monkeypatch, typed)
+def test_the_none_shorthands(answers, typed):
+    answers(typed)
     mode, indexes = ask_keep_indexes(
         "Subtitle", [3, 4], exact_mode=SUBTITLE_BY_INDEX, all_mode=SUBTITLE_ALL, none_mode=SUBTITLE_NONE)
 
     assert (mode, indexes) == (SUBTITLE_NONE, [])
 
 
-def test_no_streams_of_that_kind_selects_none_without_asking(monkeypatch):
+def test_no_streams_of_that_kind_selects_none_without_asking(answers):
     # No input is scripted: asking would raise from the fake input.
-    _answers(monkeypatch)
+    answers()
     mode, indexes = ask_keep_indexes(
         "Subtitle", [], exact_mode=SUBTITLE_BY_INDEX, all_mode=SUBTITLE_ALL, none_mode=SUBTITLE_NONE)
 
     assert (mode, indexes) == (SUBTITLE_NONE, [])
 
 
-def test_empty_input_asks_again(monkeypatch, capsys):
-    _answers(monkeypatch, "", "2")
+def test_empty_input_asks_again(answers, capsys):
+    answers("", "2")
     _, indexes = ask_keep_indexes(
         "Audio", [1, 2], exact_mode=AUDIO_BY_INDEX, all_mode=AUDIO_ALL, none_mode=AUDIO_NONE)
 
@@ -91,10 +79,10 @@ def test_empty_input_asks_again(monkeypatch, capsys):
     assert "cannot be empty" in capsys.readouterr().out
 
 
-def test_an_index_the_scan_never_reported_needs_confirming(monkeypatch, capsys):
+def test_an_index_the_scan_never_reported_needs_confirming(answers, capsys):
     """Declining returns to index entry. Silently accepting an index that is not
     in the file would produce an ffmpeg -map for a stream that does not exist."""
-    _answers(monkeypatch, "9", "n", "1")
+    answers("9", "n", "1")
     _, indexes = ask_keep_indexes(
         "Audio", [1, 2], exact_mode=AUDIO_BY_INDEX, all_mode=AUDIO_ALL, none_mode=AUDIO_NONE)
 
@@ -102,10 +90,10 @@ def test_an_index_the_scan_never_reported_needs_confirming(monkeypatch, capsys):
     assert "not found in the scan" in capsys.readouterr().out
 
 
-def test_an_unknown_index_can_be_forced(monkeypatch):
+def test_an_unknown_index_can_be_forced(answers):
     # Mixed sets differ file to file, so an index missing from one file may be
     # perfectly valid in another.
-    _answers(monkeypatch, "9", "y")
+    answers("9", "y")
     _, indexes = ask_keep_indexes(
         "Audio", [1, 2], exact_mode=AUDIO_BY_INDEX, all_mode=AUDIO_ALL, none_mode=AUDIO_NONE)
 
@@ -114,10 +102,10 @@ def test_an_unknown_index_can_be_forced(monkeypatch):
 
 # --- configure_rules_exact ------------------------------------------------
 
-def test_a_full_pass_through_the_exact_flow(monkeypatch, two_audio_two_subs):
+def test_a_full_pass_through_the_exact_flow(answers, two_audio_two_subs):
     # audio 2 -> subtitles 3 -> metadata edit? n -> attachments/metadata/
     # chapters/extras/overwrite defaults.
-    _answers(monkeypatch, "2", "3", "", "", "", "", "", "")
+    answers("2", "3", "", "", "", "", "", "")
     rules = configure_rules_exact(two_audio_two_subs)
 
     assert rules.selection_style == "exact"
@@ -128,24 +116,24 @@ def test_a_full_pass_through_the_exact_flow(monkeypatch, two_audio_two_subs):
     assert rules.subtitle_languages == [] and rules.subtitle_titles == []
 
 
-def test_choosing_no_subtitles_skips_straight_past_them(monkeypatch, two_audio_two_subs):
-    _answers(monkeypatch, "2", "none", "", "", "", "", "", "")
+def test_choosing_no_subtitles_skips_straight_past_them(answers, two_audio_two_subs):
+    answers("2", "none", "", "", "", "", "", "")
     rules = configure_rules_exact(two_audio_two_subs)
 
     assert rules.subtitle_mode == SUBTITLE_NONE
     assert rules.subtitle_indexes == []
 
 
-def test_keeping_all_of_both_kinds(monkeypatch, two_audio_two_subs):
-    _answers(monkeypatch, "all", "all", "", "", "", "", "", "")
+def test_keeping_all_of_both_kinds(answers, two_audio_two_subs):
+    answers("all", "all", "", "", "", "", "", "")
     rules = configure_rules_exact(two_audio_two_subs)
 
     assert rules.audio_mode == AUDIO_ALL
     assert rules.subtitle_mode == SUBTITLE_ALL
 
 
-def test_the_defaults_the_flow_lands_on(monkeypatch, two_audio_two_subs):
-    _answers(monkeypatch, "2", "3", "", "", "", "", "", "")
+def test_the_defaults_the_flow_lands_on(answers, two_audio_two_subs):
+    answers("2", "3", "", "", "", "", "", "")
     rules = configure_rules_exact(two_audio_two_subs)
 
     assert rules.keep_attachments is True
