@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.3] - 2026-08-10
+
+### Changed
+
+- The metadata-edit step moved out of `muxcls/selection.py` into `muxcls/metadata_edits.py`. The two answer different questions - `selection.py` decides which streams survive, `metadata_edits.py` decides what the survivors are called - and the split is along that line, not at a line count. `selection.py` is 529 lines instead of 679; nothing else changed.
+
 ## [1.6.2] - 2026-08-10
 
 ### Removed

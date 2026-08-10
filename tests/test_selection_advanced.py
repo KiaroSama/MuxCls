@@ -18,10 +18,10 @@ from muxcls.constants import (
     SUBTITLE_ALL, SUBTITLE_BY_LANGUAGE, SUBTITLE_NONE,
 )
 from muxcls.models import MediaFile, SelectionRules, StreamInfo, StreamMetadataEdit
+from muxcls.metadata_edits import ask_metadata_edits, kept_languages_for_metadata
 from muxcls.selection import (
-    ask_metadata_edits, audio_mode_needs_detail, configure_rules,
-    kept_languages_for_metadata, previous_advanced_step, revisit_last_rule_step,
-    subtitle_mode_needs_detail,
+    audio_mode_needs_detail, configure_rules, previous_advanced_step,
+    revisit_last_rule_step, subtitle_mode_needs_detail,
 )
 
 
