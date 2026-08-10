@@ -4,9 +4,6 @@
 #
 # Note: `MuxCls` works in PowerShell (pwsh/powershell.exe) only, since profile functions
 # are a PowerShell-only mechanism. In cmd.exe, run `.\run.ps1` from this folder instead.
-#
-# This installer also removes any stale entry for this project folder from the user PATH
-# that older versions added (that entry never provided a working `MuxCls` command).
 
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Launcher = Join-Path -Path $ProjectDir -ChildPath "run.ps1"
@@ -16,56 +13,7 @@ if (-not (Test-Path -LiteralPath $Launcher)) {
     exit 1
 }
 
-function Send-EnvironmentChange {
-    try {
-        if (-not ([System.Management.Automation.PSTypeName]'MuxClsNativeMethods').Type) {
-            Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public static class MuxClsNativeMethods {
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    public static extern IntPtr SendMessageTimeout(
-        IntPtr hWnd,
-        uint Msg,
-        UIntPtr wParam,
-        string lParam,
-        uint fuFlags,
-        uint uTimeout,
-        out UIntPtr lpdwResult);
-}
-"@
-        }
-
-        $result = [UIntPtr]::Zero
-        [void][MuxClsNativeMethods]::SendMessageTimeout(
-            [IntPtr]0xffff,
-            0x001A,
-            [UIntPtr]::Zero,
-            "Environment",
-            0x0002,
-            5000,
-            [ref]$result)
-    }
-    catch {
-        Write-Warning "Could not broadcast the PATH change. Open a new terminal to refresh PATH."
-    }
-}
-
-# --- Step 1: remove any stale project-folder entry from the user PATH (older versions) ---
-
-$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if (-not [string]::IsNullOrWhiteSpace($UserPath)) {
-    $PathParts = @($UserPath -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    $Kept = @($PathParts | Where-Object { $_.TrimEnd('\') -ine $ProjectDir.TrimEnd('\') })
-    if ($Kept.Count -ne $PathParts.Count) {
-        [Environment]::SetEnvironmentVariable("Path", ($Kept -join ';'), "User")
-        Send-EnvironmentChange
-        Write-Host "Removed a stale MuxCls folder entry from the user PATH." -ForegroundColor Green
-    }
-}
-
-# --- Step 2: register a `MuxCls` function in the PowerShell profile(s) ---
+# --- Register a `MuxCls` function in the PowerShell profile(s) ---
 
 $Documents = [Environment]::GetFolderPath("MyDocuments")
 $ProfilePaths = @(

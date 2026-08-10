@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.2] - 2026-08-10
+
+### Removed
+
+- `Install-MuxClsCommand.ps1` no longer carries the user-PATH cleanup, or the `SendMessageTimeout` P/Invoke that existed to broadcast it. It only ever removed a folder entry added by the pre-1.4 installer, an approach that never provided a working command; nothing has created that entry for several releases. The script is 91 lines instead of 168.
+- Three functions with no caller anywhere, not even in tests: `option_suffix` and `ask_choice` in `muxcls/prompts.py`, `has_unknown_language` in `muxcls/reporting.py`.
+
+### Changed
+
+- `matching_streams_for_media` and `terminal_separator` were single-caller wrappers that only delegated; both are inlined at their one call site.
+- `unique_path` and `unique_directory_path` ran the same search with a different name shape. One function does both now - a folder numbers its whole name, a file numbers the stem so the extension stays last.
+- The four test modules that drive interactive prompts shared one copy each of the same scripted-input helper. It is a single `answers` fixture in `tests/conftest.py` now.
+
+Net: 244 lines removed, 95 added, across nine files. No behaviour change - all 251 tests, ruff and mypy pass unchanged.
+
 ## [1.6.1] - 2026-08-10
 
 ### Changed
