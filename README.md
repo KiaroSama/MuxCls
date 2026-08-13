@@ -189,7 +189,6 @@ Optional output metadata edits apply only to kept output audio and subtitle stre
 | `CHANGELOG.md` | Versioned project changelog. |
 | `GITHUB_RELEASE_NOTES.md` | Draft release notes for the next GitHub release. |
 | `docs/MANUAL_QA.html` | Manual QA checklist. Open it by double-click; the language button switches between Persian and English, and results are kept in the browser. |
-| `.test/Run-Demo.ps1` | UI demo launcher. Walks through what MuxCls prints while it works, with a readable per-file timer. Display only: no file is read, written or converted, and FFmpeg is never invoked. |
 | `tests/` | Pytest test suite (unit tests and real FFmpeg end-to-end tests). |
 | `pytest.ini` | Pytest configuration. |
 | `requirements-dev.txt` | Test-only dependencies (not required to run MuxCls). |

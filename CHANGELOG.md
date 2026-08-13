@@ -23,7 +23,6 @@
 ### Fixed
 
 - A stray `Elapsed .. | Total ..` line was drawn underneath the live progress block, and the block's top row appeared twice. One cause: `run_with_progress` builds a per-command timer that enabled itself on any terminal - including while the block was drawing. Its line scrolled the terminal by one, so the block's next repaint moved up one line short and stranded its top row. The block now owns the screen for the length of a run and the timer stays quiet while it does.
-- `.test/demo_ui.py` could not have shown that bug: it drove the progress view directly and never built the per-command timer a real run builds. It now does, so the demo reproduces the real interaction rather than an idealised one.
 
 ### Changed
 
@@ -105,8 +104,6 @@ Net: 244 lines removed, 95 added, across nine files. No behaviour change - all 2
 
 ### Added
 
-- `.test/Run-Demo.ps1`, a display-only UI demo. It walks through everything MuxCls prints — scan report, stream summary, menus, confirmation, per-file processing and the final summary — without reading, writing or converting a single file, and without invoking FFmpeg. The screens are drawn by the application's own rendering functions fed invented data, so the demo cannot drift from the real UI. Each file is given a configurable span (5 seconds by default) so the per-file `Elapsed` timer is actually readable next to the run `Total`; a real stream copy finishes in milliseconds, which is why that line normally flashes past. Three scenarios: a remux run, a copy-unchanged run, and a mixed run that also shows a scan failure, a file with no video stream and a no-audio-match skip.
-- A regression guard for the demo (`tests/test_demo_ui.py`). The demo draws with the application's own rendering functions, so renaming one would break it silently; the guard runs the whole walkthrough with no waiting, drives the launcher's real menu, and fails if a screen stops rendering, the launcher swallows the output, or the demo writes a file.
 - `docs/MANUAL_QA.html`, a manual QA checklist built from the real strings and constants in `muxcls/`. One standalone file with a Persian/English switch that also flips direction; results persist in the browser.
 
 ### Fixed
