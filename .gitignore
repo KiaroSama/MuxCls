@@ -31,6 +31,11 @@ lesson.md
 # Graphify generated output (regenerable, machine-specific)
 graphify-out/
 
+# Local-only display demo: exercises the app's own rendering functions against
+# invented data for a quick visual walkthrough. Not part of the shipped repo.
+/.test/
+/demo UI/
+
 # Logs
 Logs/
 Log/

@@ -1,4 +1,4 @@
-"""The display-only demo (.test/demo_ui.py) draws its screens with the
+"""The display-only demo (demo UI/demo_ui.py) draws its screens with the
 application's own rendering functions. That is what keeps it honest, and it is
 also what makes it fragile: renaming any of those functions breaks the demo
 silently, because nothing else imports them together.
@@ -14,14 +14,14 @@ from pathlib import Path
 
 import pytest
 
-DEMO_DIR = Path(__file__).resolve().parent.parent / ".test"
+DEMO_DIR = Path(__file__).resolve().parent.parent / "demo UI"
 sys.path.insert(0, str(DEMO_DIR))
 
 # Skip only when the demo is genuinely absent. importorskip would also swallow an
 # ImportError from a renamed application function - exactly the failure this file
 # exists to catch - and turn it into a green skip.
 pytestmark = pytest.mark.skipif(not (DEMO_DIR / "demo_ui.py").exists(),
-                                reason=".test/demo_ui.py is not present")
+                                reason="demo UI/demo_ui.py is not present")
 if (DEMO_DIR / "demo_ui.py").exists():
     import demo_ui
 
