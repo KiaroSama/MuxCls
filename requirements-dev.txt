@@ -13,5 +13,5 @@ pytest-cov>=7.1.0
 # rules to its default set, so an open range breaks CI on code nobody touched -
 # which is exactly what happened when these were first added. Bump these
 # deliberately, run them locally, then push.
-ruff~=0.15.14
+ruff~=0.16.3
 mypy~=2.1.0
