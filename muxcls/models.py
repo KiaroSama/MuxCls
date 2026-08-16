@@ -77,6 +77,15 @@ class StreamMetadataEdit:
 
 
 @dataclass
+class OutputStreamEdits:
+    """Everything the output-stream screen decides: what the kept streams are
+    called, and what order the output carries them in."""
+    metadata_edits: List[StreamMetadataEdit] = field(default_factory=list)
+    audio_order: List[int] = field(default_factory=list)
+    subtitle_order: List[int] = field(default_factory=list)
+
+
+@dataclass
 class SelectionRules:
     audio_mode: str
     audio_languages: List[str]
@@ -95,6 +104,11 @@ class SelectionRules:
     copy_non_video_files: bool = True
     selection_style: str = "advanced"
     metadata_edits: List[StreamMetadataEdit] = field(default_factory=list)
+    # Source stream indexes in the order the output should carry them. Streams
+    # left out keep their original relative position after the listed ones, so a
+    # partial answer is still a complete order.
+    audio_order: List[int] = field(default_factory=list)
+    subtitle_order: List[int] = field(default_factory=list)
 
 
 def parse_int_value(value: Any) -> Optional[int]:

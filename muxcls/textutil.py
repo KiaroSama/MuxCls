@@ -6,7 +6,7 @@ import time
 from typing import Iterable, List, Optional, Sequence
 
 from .constants import UNKNOWN_LANGUAGE_DISPLAY, UNKNOWN_LANGUAGE_INPUTS
-from .colors import C, EXAMPLE_TEXT_COLOR, FOUND_DETAIL_VALUE_COLOR, FOUND_LABEL_COLOR, FOUND_VALUE_COLOR, HEADER_SEPARATOR_COLOR, LANGUAGE_COLORS, UNKNOWN_LANGUAGE_COLOR, color, warn
+from .colors import C, EXAMPLE_TEXT_COLOR, FOUND_DETAIL_VALUE_COLOR, FOUND_LABEL_COLOR, FOUND_VALUE_COLOR, HEADER_SEPARATOR_COLOR, LANGUAGE_COLORS, PROMPT_DEFAULT_COLOR, UNKNOWN_LANGUAGE_COLOR, color, warn
 from .logsetup import LOGGER
 from .models import StreamInfo
 
@@ -94,8 +94,27 @@ def color_example_text(text: str) -> str:
     return text[:start] + color(text[start:end], EXAMPLE_TEXT_COLOR) + text[end:]
 
 
+def color_enter_hint_text(text: str) -> str:
+    """Paint a `[Enter=...]` hint the same green as `[Y]` and `[n]`.
+
+    It is a default value like any other - it just spells out what pressing
+    Enter does instead of showing the value itself - so it reads as one of the
+    navigation hints rather than part of the question.
+    """
+    start = text.find("[Enter=")
+    if start == -1:
+        return text
+    end = text.find("]", start)
+    if end == -1:
+        return text
+    end += 1
+    return text[:start] + color(text[start:end], PROMPT_DEFAULT_COLOR) + text[end:]
+
+
 def format_prompt_label(prompt: str) -> str:
-    return color_example_text(color_found_detail_text(color_found_text(prompt_label(prompt))))
+    return color_enter_hint_text(
+        color_example_text(color_found_detail_text(color_found_text(prompt_label(prompt))))
+    )
 
 
 def parse_csv_text(raw: str) -> List[str]:

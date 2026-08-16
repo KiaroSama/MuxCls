@@ -17,11 +17,12 @@ from muxcls.constants import (
     AUDIO_ALL, AUDIO_BY_INDEX, AUDIO_BY_LANGUAGE, AUDIO_BY_TITLE, AUDIO_NONE,
     SUBTITLE_ALL, SUBTITLE_BY_LANGUAGE, SUBTITLE_NONE,
 )
-from muxcls.models import MediaFile, SelectionRules, StreamInfo, StreamMetadataEdit
+from muxcls.models import MediaFile, OutputStreamEdits, SelectionRules, StreamInfo, StreamMetadataEdit
 from muxcls.metadata_edits import ask_metadata_edits, kept_languages_for_metadata
 from muxcls.selection import (
-    audio_mode_needs_detail, configure_rules, previous_advanced_step,
-    revisit_last_rule_step, subtitle_mode_needs_detail,
+    audio_mode_needs_detail, configure_rules, configure_rules_advanced,
+    previous_advanced_step, previous_exact_step, revisit_last_rule_step,
+    subtitle_mode_needs_detail,
 )
 
 
@@ -111,7 +112,7 @@ def test_back_from_the_first_step_stays_put():
 
 def test_declining_metadata_edits_returns_nothing(answers, dual_audio):
     answers("n")
-    assert ask_metadata_edits(dual_audio) == []
+    assert ask_metadata_edits(dual_audio) == OutputStreamEdits()
 
 
 def test_declining_clears_edits_that_were_already_set(answers, dual_audio):
@@ -121,7 +122,17 @@ def test_declining_clears_edits_that_were_already_set(answers, dual_audio):
                                    language="jpn", title="Japanese")]
     answers("n")
 
-    assert ask_metadata_edits(dual_audio, initial_edits=existing) == []
+    assert ask_metadata_edits(dual_audio, initial_edits=existing) == OutputStreamEdits()
+
+
+def test_declining_also_clears_an_output_order_that_was_already_set(answers, dual_audio):
+    """Same rule as the edits above: the order is part of this screen, so
+    answering no has to drop it too or Back could never undo a reorder."""
+    answers("n")
+
+    result = ask_metadata_edits(dual_audio, current_rules=_rules(audio_order=[2, 1]))
+
+    assert result.audio_order == []
 
 
 def test_the_languages_offered_come_from_the_streams_that_will_be_kept(dual_audio):
@@ -172,3 +183,65 @@ def test_revisit_returns_to_the_exact_flow_for_exact_rules(answers, dual_audio):
     revisited = revisit_last_rule_step(dual_audio, exact)
 
     assert revisited.selection_style == "exact"
+
+
+# --- output stream order in the metadata screen ----------------------------
+
+def test_choosing_reorder_records_the_indexes_in_the_order_typed(answers, dual_audio):
+    # yes -> action 7 (reorder audio) -> the order -> done
+    answers("y", "7", "2,1", "10")
+
+    result = ask_metadata_edits(dual_audio, current_rules=_rules())
+
+    assert result.audio_order == [2, 1]
+    assert result.subtitle_order == []
+    assert result.metadata_edits == []
+
+
+def test_an_existing_order_is_carried_into_the_screen_and_kept(answers, dual_audio):
+    """Reaching this screen again through Back must show the order already set
+    rather than silently starting from none."""
+    answers("y", "10")
+
+    result = ask_metadata_edits(dual_audio, current_rules=_rules(audio_order=[2, 1]))
+
+    assert result.audio_order == [2, 1]
+
+
+# --- a single dropped file has no siblings to copy -------------------------
+
+def test_a_single_file_input_is_never_asked_about_copying_other_files(answers, dual_audio):
+    """Seven answers cover every step except the non-video copy question. If it
+    were still asked the scripted input would run out, which the fixture raises
+    on - so this fails loudly rather than quietly."""
+    answers("4", "1", "", "", "", "", "")
+
+    rules = configure_rules_advanced(dual_audio, single_file_input=True)
+
+    assert rules.copy_non_video_files is False
+
+
+def test_a_folder_input_is_still_asked_about_copying_other_files(answers, dual_audio):
+    # The seventh answer is the copy question; without it the eighth ("") would
+    # answer overwrite and the copy flag would keep its True default.
+    answers("4", "1", "", "", "", "", "n", "")
+
+    rules = configure_rules_advanced(dual_audio, single_file_input=False)
+
+    assert rules.copy_non_video_files is False
+
+
+@pytest.mark.parametrize("previous_step,skip,expected", [
+    (9, True, 7), (9, False, 8),
+])
+def test_back_from_overwrite_skips_the_question_a_single_file_never_saw(previous_step, skip, expected):
+    assert previous_advanced_step(
+        previous_step, AUDIO_ALL, SUBTITLE_ALL, skip_copy_non_video=skip,
+    ) == expected
+
+
+@pytest.mark.parametrize("previous_step,skip,expected", [
+    (7, True, 5), (7, False, 6),
+])
+def test_exact_back_from_overwrite_skips_the_same_question(previous_step, skip, expected):
+    assert previous_exact_step(previous_step, SUBTITLE_ALL, skip_copy_non_video=skip) == expected

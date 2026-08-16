@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from .constants import AUDIO_ALL, AUDIO_BY_INDEX, AUDIO_BY_LANGUAGE, AUDIO_BY_TITLE, FFMPEG_BIN, SUBTITLE_ALL, SUBTITLE_BY_INDEX, SUBTITLE_BY_LANGUAGE, SUBTITLE_BY_TITLE, SUBTITLE_NONE
 from .models import MediaFile, SelectionRules, StreamInfo, StreamMetadataEdit
@@ -12,7 +12,31 @@ def text_matches_any(value: str, needles: List[str]) -> bool:
     return any(needle in haystack for needle in needles)
 
 
-def selected_audio_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
+def apply_stream_order(streams: List[StreamInfo], order: Sequence[int]) -> List[StreamInfo]:
+    """Put the streams the user named first, in the order they named them.
+
+    `-map` order is what decides the output stream order, so reordering here is
+    the whole feature. Anything not named keeps its original relative position
+    after the named ones: a user who only wants one track moved should not have
+    to retype the rest. An index that names no kept stream is ignored, and a
+    repeated one is honoured once.
+    """
+    if not order:
+        return streams
+
+    by_index = {stream.index: stream for stream in streams}
+    ordered: List[StreamInfo] = []
+    placed = set()
+    for index in order:
+        stream = by_index.get(index)
+        if stream is not None and index not in placed:
+            ordered.append(stream)
+            placed.add(index)
+
+    return ordered + [stream for stream in streams if stream.index not in placed]
+
+
+def matched_audio_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
     audio = media.audio_streams
 
     if rules.audio_mode == AUDIO_BY_LANGUAGE:
@@ -31,7 +55,12 @@ def selected_audio_streams(media: MediaFile, rules: SelectionRules) -> List[Stre
     return []
 
 
-def selected_subtitle_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
+def selected_audio_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
+    """The audio the output keeps, in the order the output will carry it."""
+    return apply_stream_order(matched_audio_streams(media, rules), rules.audio_order)
+
+
+def matched_subtitle_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
     subtitles = media.subtitle_streams
 
     if rules.subtitle_mode == SUBTITLE_NONE:
@@ -51,6 +80,11 @@ def selected_subtitle_streams(media: MediaFile, rules: SelectionRules) -> List[S
         return subtitles
 
     return []
+
+
+def selected_subtitle_streams(media: MediaFile, rules: SelectionRules) -> List[StreamInfo]:
+    """The subtitles the output keeps, in the order the output will carry them."""
+    return apply_stream_order(matched_subtitle_streams(media, rules), rules.subtitle_order)
 
 
 def metadata_edit_applies(edit: StreamMetadataEdit, stream: StreamInfo) -> bool:
@@ -97,6 +131,23 @@ def same_stream_indexes(original: Sequence[StreamInfo], selected: Sequence[Strea
     return [stream.index for stream in original] == [stream.index for stream in selected]
 
 
+def stream_change_reason(
+    label: str,
+    original: Sequence[StreamInfo],
+    selected: Sequence[StreamInfo],
+) -> Optional[str]:
+    """Why this stream type forces a remux, or None when nothing changed.
+
+    Keeping every stream but reordering it is a real change, and calling that a
+    selection change would send the reader looking for a dropped track.
+    """
+    if same_stream_indexes(original, selected):
+        return None
+    if {stream.index for stream in original} == {stream.index for stream in selected}:
+        return f"{label} stream order changes"
+    return f"{label} stream selection changes"
+
+
 def metadata_edits_need_remux(streams: Sequence[StreamInfo], rules: SelectionRules) -> bool:
     for stream in streams:
         target_language, target_title = metadata_values_for_stream(stream, rules)
@@ -115,10 +166,12 @@ def remux_needed_reasons(
 ) -> List[str]:
     reasons: List[str] = []
 
-    if not same_stream_indexes(media.audio_streams, audio_keep):
-        reasons.append("audio stream selection changes")
-    if not same_stream_indexes(media.subtitle_streams, subtitles_keep):
-        reasons.append("subtitle stream selection changes")
+    audio_reason = stream_change_reason("audio", media.audio_streams, audio_keep)
+    if audio_reason:
+        reasons.append(audio_reason)
+    subtitle_reason = stream_change_reason("subtitle", media.subtitle_streams, subtitles_keep)
+    if subtitle_reason:
+        reasons.append(subtitle_reason)
     if not rules.keep_attachments and media.attachment_streams:
         reasons.append("attachments are removed")
     if not rules.keep_metadata:

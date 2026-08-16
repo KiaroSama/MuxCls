@@ -104,12 +104,16 @@ def main_menu() -> None:
         print_scan_report(media_files, input_root)
         print_unique_summary(media_files)
 
+        # A single dropped file has no siblings to copy, so the non-video copy
+        # question has no answer worth asking for.
+        single_file_input = input_root.is_file()
+
         restart_input = False
         rules: Optional[SelectionRules] = None
         while True:
             if rules is None:
                 try:
-                    rules = configure_rules(media_files)
+                    rules = configure_rules(media_files, single_file_input=single_file_input)
                 except MenuBack:
                     LOGGER.info("Back requested; returning to input path")
                     print(warn("Back. Returning to input path."))
@@ -131,7 +135,7 @@ def main_menu() -> None:
                     if rules is None:
                         break
                     try:
-                        rules = revisit_last_rule_step(media_files, rules)
+                        rules = revisit_last_rule_step(media_files, rules, single_file_input=single_file_input)
                     except MenuBack:
                         LOGGER.info("Back requested from first revisited rule step; returning to stream selection")
                         print(warn("Back. Returning to stream selection."))
@@ -166,10 +170,13 @@ def main_menu() -> None:
             print_setting("Subtitle titles", rules.subtitle_titles)
             print_setting("Subtitle indexes", rules.subtitle_indexes)
             print_setting("Metadata edits", rules.metadata_edits)
+            print_setting("Audio output order", rules.audio_order)
+            print_setting("Subtitle output order", rules.subtitle_order)
             print_setting("Keep attachments", rules.keep_attachments)
             print_setting("Keep metadata", rules.keep_metadata)
             print_setting("Keep chapters", rules.keep_chapters)
-            print_setting("Copy non-video files", rules.copy_non_video_files)
+            if not single_file_input:
+                print_setting("Copy non-video files", rules.copy_non_video_files)
             print_setting("Overwrite", rules.overwrite)
             LOGGER.info("Confirmed rules: %s", rules)
 

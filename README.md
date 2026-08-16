@@ -1,6 +1,6 @@
 # MuxCls
 
-Current version: **1.7.3**
+Current version: **1.8.0**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
 
@@ -26,6 +26,7 @@ It uses FFmpeg stream copy (`ffmpeg -c copy`), so it does not re-encode video, a
 - Copies unchanged video files with `robocopy` on Windows, or the Python standard library on other platforms.
 - Can preserve metadata, chapters, stream labels, language tags, and MKV font attachments when selected.
 - Can edit kept output audio and subtitle stream language/title metadata without changing the source files.
+- Can reorder the output audio and subtitle streams by stream index, keeping each stream's default flag and title with it.
 - Reports remuxed, copied, skipped, failed, extra-file copy counts, elapsed time, and total output size difference.
 - Shows each file's own size change at the end of its progress row as soon as that file finishes, next to the run total at the end.
 - Shows a per-file elapsed timer that starts at zero for each file, alongside the elapsed time of the whole run.
@@ -103,7 +104,7 @@ Typical flow:
 1. Enter or drag-and-drop one video file or folder into the input prompt.
 2. Review the scan report for audio and subtitle stream indexes, languages, titles, codecs, default flags, and size estimates.
 3. Select streams by exact index or with advanced rules by language, title text, or index.
-4. Choose whether to keep MKV attachments, metadata, chapters, copy non-video files, edit kept output stream metadata, and overwrite existing output files.
+4. Choose whether to keep MKV attachments, metadata, chapters, copy non-video files, edit or reorder kept output streams, and overwrite existing output files. A single input file is not asked about copying non-video files, because there are none beside it.
 5. Choose an output folder, or press Enter to use the input parent folder.
 6. Confirm settings and start processing.
 
@@ -157,6 +158,8 @@ After processing, the summary shows how many video files were remuxed, copied un
 This does not change video, audio, or subtitle content. Metadata preservation depends on the output container and FFmpeg support, so unsupported metadata may be dropped. Keeping metadata is usually useful for anime and series files because language tags, track titles, chapters, and release information may be preserved. Turning it off can produce cleaner output when the source contains messy or unwanted tags.
 
 Optional output metadata edits apply only to kept output audio and subtitle streams. They can set language codes or titles by current language or exact stream index. Source files are not modified.
+
+The same screen can reorder the output streams. Enter the source stream indexes in the order the output should carry them, for example `2,1` to put stream 2 ahead of stream 1; anything left out keeps its place after the ones you named. Audio and subtitles are ordered independently, and each stream takes its own default flag and title with it. Reordering is a real change to the output, so a file that would otherwise have been copied unchanged is remuxed.
 
 ## Safety Notes
 

@@ -165,3 +165,74 @@ def test_dropping_the_default_stream_still_preserves_remaining_dispositions():
     # The only surviving audio track was not default in the source, so it must
     # not silently become default in the output.
     assert _disposition_value(cmd, "a:0") == "-default"
+
+
+# --- output stream order ---------------------------------------------------
+
+def test_named_indexes_come_first_in_the_order_given():
+    media = _media()
+    rules = _rules(audio_order=[2, 1])
+
+    assert [s.index for s in selected_audio_streams(media, rules)] == [2, 1]
+
+
+def test_streams_left_out_of_the_order_keep_their_place_after_it():
+    """A user who only wants one track moved should not have to retype the
+    rest, so a partial answer is still a complete order."""
+    media = MediaFile(path=Path("in.mkv"), streams=[
+        StreamInfo(index=0, codec_type="video"),
+        StreamInfo(index=1, codec_type="audio", language="eng"),
+        StreamInfo(index=2, codec_type="audio", language="jpn"),
+        StreamInfo(index=3, codec_type="audio", language="spa"),
+    ])
+
+    kept = selected_audio_streams(media, _rules(audio_order=[3]))
+
+    assert [s.index for s in kept] == [3, 1, 2]
+
+
+def test_an_order_naming_no_kept_stream_changes_nothing():
+    media = _media()
+    rules = _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"], audio_order=[2])
+
+    # Index 2 is the English track, which this selection drops; the order must
+    # not resurrect it or blank the list.
+    assert [s.index for s in selected_audio_streams(media, rules)] == [1]
+
+
+def test_a_repeated_index_is_honoured_once():
+    media = _media()
+
+    kept = selected_audio_streams(media, _rules(audio_order=[2, 2, 1]))
+
+    assert [s.index for s in kept] == [2, 1]
+
+
+def test_reordering_moves_the_map_arguments_and_the_per_stream_options():
+    media = _media()
+    rules = _rules(audio_order=[2, 1])
+
+    cmd, audio_keep, _ = build_ffmpeg_command(Path("in.mkv"), Path("out.mkv"), media, rules)
+
+    assert [s.index for s in audio_keep] == [2, 1]
+    maps = [cmd[i + 1] for i, token in enumerate(cmd) if token == "-map"]
+    assert maps.index("0:2") < maps.index("0:1"), "map order is what decides output order"
+    # Source index 1 carried the default and is now output audio 1, so the
+    # disposition has to travel with the stream rather than stay at position 0.
+    assert _disposition_value(cmd, "a:0") == "-default"
+    assert _disposition_value(cmd, "a:1") == "+default"
+
+
+def test_reordering_alone_forces_a_remux_and_says_why():
+    media = _media()
+    rules = _rules(audio_order=[2, 1])
+
+    reasons = remux_needed_reasons(
+        media, rules,
+        selected_audio_streams(media, rules),
+        selected_subtitle_streams(media, rules),
+    )
+
+    # Every stream survives, so calling this a selection change would send the
+    # reader looking for a track that was never dropped.
+    assert reasons == ["audio stream order changes"]
