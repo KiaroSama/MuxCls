@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0] - 2026-08-16
+
+### Added
+
+- The output-stream screen can now reorder the kept audio and subtitle streams. Enter the source indexes in the order the output should carry them; anything left out keeps its place after them. Each stream's default flag and title travel with it, so moving the track that carried the default does not leave the flag behind on whatever ends up in that position.
+
+### Changed
+
+- A `[Enter=...]` hint is painted the same green as `[Y]` and `[n]`. It is a default value like any other, so reading it as part of the question was misleading.
+- A run whose input is a single file is no longer asked whether to copy non-video files. There are none beside it, so the question had no answer that changed anything.
+- When every stream survives but the order changed, the remux reason reads "audio stream order changes" rather than "selection changes", which would send the reader looking for a track that was never dropped.
+
 ## [1.7.3] - 2026-08-11
 
 ### Changed

@@ -8,6 +8,8 @@ tmp_path, and nothing spawns a process.
 
 import pytest
 
+from muxcls.colors import PROMPT_DEFAULT_COLOR, plain
+from muxcls.textutil import format_prompt_label
 from muxcls.prompts import (
     MenuBack, MenuExit,
     ask_csv_int_required, ask_csv_text_required, ask_path, ask_yes_no,
@@ -151,3 +153,19 @@ def test_csv_int_confirms_an_index_the_scan_did_not_find(answers, capsys):
 def test_csv_int_keeps_an_unknown_index_when_confirmed(answers):
     answers("9", "y")
     assert ask_csv_int_required("Indexes", available_indexes=[1, 2, 3]) == [9]
+
+
+# --- the Enter hint is a default value, and reads like one ------------------
+
+def test_an_enter_hint_is_painted_the_same_green_as_a_bracketed_default():
+    """`[Enter=...]` says what pressing Enter does instead of showing the value,
+    but it is still the default - so it must not read as part of the question."""
+    rendered = format_prompt_label("Output folder path [Enter=input parent folder]")
+
+    assert PROMPT_DEFAULT_COLOR + "[Enter=input parent folder]" in rendered
+    assert plain(rendered) == "Output folder path [Enter=input parent folder]"
+
+
+def test_a_label_without_an_enter_hint_is_untouched():
+    assert plain(format_prompt_label("Keep chapters?")) == "Keep chapters?"
+    assert "[" not in format_prompt_label("Keep chapters?")

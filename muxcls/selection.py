@@ -76,6 +76,7 @@ def previous_advanced_step(
     subtitle_mode: str,
     skip_audio_selection: bool = False,
     skip_subtitle_selection: bool = False,
+    skip_copy_non_video: bool = False,
 ) -> int:
     if step == 1:
         return 0
@@ -110,11 +111,12 @@ def previous_advanced_step(
     if step == 8:
         return 7
     if step == 9:
-        return 8
+        # Step 8 is not asked for a single-file input, so Back must not land there.
+        return 7 if skip_copy_non_video else 8
     return 0
 
 
-def previous_exact_step(step: int, subtitle_mode: str) -> int:
+def previous_exact_step(step: int, subtitle_mode: str, skip_copy_non_video: bool = False) -> int:
     if step == 1:
         return 0
     if step == 2:
@@ -128,7 +130,8 @@ def previous_exact_step(step: int, subtitle_mode: str) -> int:
     if step == 6:
         return 5
     if step == 7:
-        return 6
+        # Step 6 is not asked for a single-file input, so Back must not land there.
+        return 5 if skip_copy_non_video else 6
     return 0
 
 
@@ -143,6 +146,7 @@ def configure_rules_advanced(
     media_files: List[MediaFile],
     initial: Optional[SelectionRules] = None,
     start_step: int = 0,
+    single_file_input: bool = False,
 ) -> SelectionRules:
     audio_language_options = stream_languages_for(media_files, "audio")
     subtitle_language_options = stream_languages_for(media_files, "subtitle")
@@ -174,6 +178,8 @@ def configure_rules_advanced(
     keep_attachments = initial.keep_attachments if initial else True
     keep_metadata = initial.keep_metadata if initial else True
     metadata_edits = list(initial.metadata_edits) if initial else []
+    audio_order = list(initial.audio_order) if initial else []
+    subtitle_order = list(initial.subtitle_order) if initial else []
     keep_chapters = initial.keep_chapters if initial else True
     copy_non_video_files = initial.copy_non_video_files if initial else True
     overwrite = initial.overwrite if initial else False
@@ -196,6 +202,8 @@ def configure_rules_advanced(
             copy_non_video_files=copy_non_video_files,
             selection_style="advanced",
             metadata_edits=metadata_edits,
+            audio_order=audio_order,
+            subtitle_order=subtitle_order,
         )
 
     if initial is None and skip_audio_selection:
@@ -359,7 +367,10 @@ def configure_rules_advanced(
                 continue
 
             if step == 6:
-                metadata_edits = ask_metadata_edits(media_files, metadata_edits, make_rules())
+                edits = ask_metadata_edits(media_files, metadata_edits, make_rules())
+                metadata_edits = edits.metadata_edits
+                audio_order = edits.audio_order
+                subtitle_order = edits.subtitle_order
                 step = 7
                 continue
 
@@ -369,6 +380,11 @@ def configure_rules_advanced(
                 continue
 
             if step == 8:
+                if single_file_input:
+                    # One file in, one file out: there is no sibling to copy.
+                    copy_non_video_files = False
+                    step = 9
+                    continue
                 copy_non_video_files = ask_yes_no("Copy non-video files to output folder?", True)
                 step = 9
                 continue
@@ -385,6 +401,7 @@ def configure_rules_advanced(
                 subtitle_mode,
                 skip_audio_selection=skip_audio_selection,
                 skip_subtitle_selection=skip_subtitle_selection,
+                skip_copy_non_video=single_file_input,
             )
             if step < 0:
                 raise
@@ -395,6 +412,7 @@ def configure_rules_exact(
     media_files: List[MediaFile],
     initial: Optional[SelectionRules] = None,
     start_step: int = 0,
+    single_file_input: bool = False,
 ) -> SelectionRules:
     step = start_step
     audio_mode = initial.audio_mode if initial else AUDIO_BY_INDEX
@@ -404,6 +422,8 @@ def configure_rules_exact(
     keep_attachments = initial.keep_attachments if initial else True
     keep_metadata = initial.keep_metadata if initial else True
     metadata_edits = list(initial.metadata_edits) if initial else []
+    audio_order = list(initial.audio_order) if initial else []
+    subtitle_order = list(initial.subtitle_order) if initial else []
     keep_chapters = initial.keep_chapters if initial else True
     copy_non_video_files = initial.copy_non_video_files if initial else True
     overwrite = initial.overwrite if initial else False
@@ -426,6 +446,8 @@ def configure_rules_exact(
             copy_non_video_files=copy_non_video_files,
             selection_style="exact",
             metadata_edits=metadata_edits,
+            audio_order=audio_order,
+            subtitle_order=subtitle_order,
         )
 
     while True:
@@ -469,7 +491,10 @@ def configure_rules_exact(
                 continue
 
             if step == 4:
-                metadata_edits = ask_metadata_edits(media_files, metadata_edits, make_rules())
+                edits = ask_metadata_edits(media_files, metadata_edits, make_rules())
+                metadata_edits = edits.metadata_edits
+                audio_order = edits.audio_order
+                subtitle_order = edits.subtitle_order
                 step = 5
                 continue
 
@@ -479,6 +504,11 @@ def configure_rules_exact(
                 continue
 
             if step == 6:
+                if single_file_input:
+                    # One file in, one file out: there is no sibling to copy.
+                    copy_non_video_files = False
+                    step = 7
+                    continue
                 copy_non_video_files = ask_yes_no("Copy non-video files to output folder?", True)
                 step = 7
                 continue
@@ -489,14 +519,14 @@ def configure_rules_exact(
         except MenuBack:
             if step == 0:
                 raise
-            step = previous_exact_step(step, subtitle_mode)
+            step = previous_exact_step(step, subtitle_mode, skip_copy_non_video=single_file_input)
             print(warn("Back. Returning to previous step."))
 
 
-def configure_rules(media_files: List[MediaFile]) -> SelectionRules:
+def configure_rules(media_files: List[MediaFile], single_file_input: bool = False) -> SelectionRules:
     if len(stream_languages_for(media_files, "audio")) <= 1:
         LOGGER.info("Selection style skipped: one or zero audio languages found")
-        return configure_rules_advanced(media_files)
+        return configure_rules_advanced(media_files, single_file_input=single_file_input)
 
     while True:
         selection_style = ask_numbered_menu(
@@ -513,16 +543,20 @@ def configure_rules(media_files: List[MediaFile]) -> SelectionRules:
         try:
             if selection_style == "1":
                 LOGGER.info("Selection style: advanced")
-                return configure_rules_advanced(media_files)
+                return configure_rules_advanced(media_files, single_file_input=single_file_input)
 
             LOGGER.info("Selection style: exact stream indexes")
-            return configure_rules_exact(media_files)
+            return configure_rules_exact(media_files, single_file_input=single_file_input)
         except MenuBack:
             LOGGER.info("Back requested inside stream selection; returning to selection style")
             print(warn("Back. Returning to selection style."))
 
 
-def revisit_last_rule_step(media_files: List[MediaFile], rules: SelectionRules) -> SelectionRules:
+def revisit_last_rule_step(
+    media_files: List[MediaFile],
+    rules: SelectionRules,
+    single_file_input: bool = False,
+) -> SelectionRules:
     if rules.selection_style == "exact":
-        return configure_rules_exact(media_files, initial=rules, start_step=7)
-    return configure_rules_advanced(media_files, initial=rules, start_step=9)
+        return configure_rules_exact(media_files, initial=rules, start_step=7, single_file_input=single_file_input)
+    return configure_rules_advanced(media_files, initial=rules, start_step=9, single_file_input=single_file_input)

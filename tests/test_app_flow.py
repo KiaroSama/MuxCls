@@ -52,7 +52,7 @@ def library(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "enable_windows_ansi", lambda: None)
     monkeypatch.setattr(app, "find_video_files", lambda _root: [video])
     monkeypatch.setattr(app, "scan_files", lambda _files: ScanResult(files=[media], failures=[]))
-    monkeypatch.setattr(app, "configure_rules", lambda _files: _rules())
+    monkeypatch.setattr(app, "configure_rules", lambda _files, **_kwargs: _rules())
     monkeypatch.setattr(app.sys, "argv", ["MuxCls.py"])
     return folder
 

@@ -210,3 +210,34 @@ def test_overwrite_replaces_an_existing_unchanged_copy(tmp_path, destination_sta
     copying.copy_video_without_remux(source, destination, overwrite=True)
 
     assert destination.read_bytes() == expected, "overwrite did not replace the stale destination"
+
+
+def test_reordering_audio_actually_swaps_the_streams_in_the_output(tmp_path):
+    """The practical proof for the output-order feature: a real remux, then the
+    output read back with ffprobe. The source carries jpn at stream 1 and eng at
+    stream 2; asking for 2,1 must put eng first in the file on disk."""
+    indir = tmp_path / "Order"
+    indir.mkdir()
+    srt = tmp_path / "o.srt"
+    srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n", encoding="utf-8")
+    _make_mkv(indir / "E01.mkv", srt, default_audio_index=1)
+
+    scan = media.scan_files([indir / "E01.mkv"])
+    source = scan.files[0]
+    assert [s.language for s in source.audio_streams] == ["jpn", "eng"]
+    # The default sits on the track that is about to move, which is the case a
+    # position-based disposition loop would get wrong.
+    assert [s.disposition_default for s in source.audio_streams] == [0, 1]
+
+    rules = _rules(audio_order=[2, 1], copy_non_video_files=False)
+    out_root = output.resolve_output_root(indir, tmp_path / "OutOrder", rules)
+    summary = processing.process_files(scan.files, indir, out_root, rules)
+
+    assert summary.succeeded == 1
+    assert summary.remuxed == 1, "a reorder is a real change, not a copy-unchanged"
+
+    probed = media.probe_file(next(out_root.rglob("*.mkv")))
+    assert [s.language for s in probed.audio_streams] == ["eng", "jpn"]
+    # Nothing was dropped, and the default followed its own track to position 1.
+    assert len(probed.audio_streams) == 2
+    assert [s.disposition_default for s in probed.audio_streams] == [1, 0]
