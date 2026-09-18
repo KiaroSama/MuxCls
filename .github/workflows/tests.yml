@@ -106,9 +106,68 @@ jobs:
       - name: Run test suite
         run: python -m pytest tests -v --cov=muxcls --cov-report=term-missing
 
+      # A test FILE that never starts is identical to success in every number
+      # except how many cases were COLLECTED: nothing goes red, the totals are
+      # simply short. Every leg runs the same suite on the same commit, so the
+      # legs must agree with each other - no stored baseline to maintain, and
+      # adding tests never breaks it while losing a file on one leg always does.
+      - name: Record collected count
+        run: python -m pytest tests --collect-only -q > collected.txt
+      - name: Upload collected count
+        uses: actions/upload-artifact@v7
+        with:
+          name: collected-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: collected.txt
+          retention-days: 1
+
       # The coverage number is reported, never enforced. A threshold here would
       # reward tests written to move a percentage; the missing-line list is what
       # actually tells a reviewer which paths nothing exercises.
       - name: Coverage summary
         if: runner.os == 'Linux' && matrix.python-version == '3.11'
         run: python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+
+  # Guards against a suite silently shrinking on one leg only. Skips may
+  # legitimately differ between platforms and are reported, never gated; the
+  # collected total may not differ at all.
+  collected-agreement:
+    name: every leg collected the same tests
+    needs: test
+    if: always() && needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download every leg's count
+        uses: actions/download-artifact@v8
+        with:
+          pattern: collected-*
+          path: counts
+
+      - name: Compare
+        shell: python
+        run: |
+          import pathlib, re, sys
+
+          files = sorted(pathlib.Path("counts").glob("*/collected.txt"))
+          if not files:
+              sys.exit("no collected-count artifacts were downloaded")
+
+          counts = {}
+          for path in files:
+              text = path.read_text(encoding="utf-8", errors="replace")
+              match = re.search(r"^(\d+)\s+tests?\s+collected", text, re.MULTILINE)
+              if not match:
+                  sys.exit("could not read a collected count from " + path.parent.name)
+              counts[path.parent.name] = int(match.group(1))
+
+          for leg, value in sorted(counts.items()):
+              print(leg, "collected", value)
+
+          distinct = set(counts.values())
+          if len(distinct) != 1:
+              sys.exit(
+                  "legs disagree on how many tests were collected: "
+                  + repr(sorted(counts.items()))
+                  + " - a test file is missing or failed to import on at least one leg"
+              )
+          print("all", len(counts), "legs collected", distinct.pop(), "tests")

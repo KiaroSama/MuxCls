@@ -9,11 +9,14 @@ whose result is the denominator of the remux progress percentage.
 import pytest
 
 from muxcls.models import (
-    MediaFile, StreamInfo,
-    parse_duration_seconds, parse_float_value, parse_int_value,
-    stream_size_bytes_from_ffprobe, tag_value_by_prefix,
+    MediaFile,
+    StreamInfo,
+    parse_duration_seconds,
+    parse_float_value,
+    parse_int_value,
+    stream_size_bytes_from_ffprobe,
+    tag_value_by_prefix,
 )
-
 
 # --- number parsing -------------------------------------------------------
 

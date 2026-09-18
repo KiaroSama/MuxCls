@@ -186,7 +186,7 @@ def test_extra_overwrite_replaces_a_newer_destination(stale_extra):
     extra, source_root, output_root, destination = stale_extra
     assert destination.read_text(encoding="utf-8") != extra.read_text(encoding="utf-8")
 
-    copied, skipped, failed = copying.copy_extra_files(source_root, output_root, _extra_rules(True))
+    copied, _skipped, failed = copying.copy_extra_files(source_root, output_root, _extra_rules(True))
 
     assert (copied, failed) == (1, 0)
     assert destination.read_text(encoding="utf-8") == "REAL SOURCE TEXT"
@@ -200,14 +200,14 @@ def test_extra_overwrite_replaces_a_same_size_same_time_destination(stale_extra)
     assert destination.stat().st_size == extra.stat().st_size
     assert destination.stat().st_mtime_ns == extra.stat().st_mtime_ns
 
-    copied, skipped, failed = copying.copy_extra_files(source_root, output_root, _extra_rules(True))
+    _copied, _skipped, failed = copying.copy_extra_files(source_root, output_root, _extra_rules(True))
 
     assert failed == 0
     assert destination.read_text(encoding="utf-8") == "REAL SOURCE TEXT"
 
 
 def test_extra_without_overwrite_keeps_the_existing_destination(stale_extra):
-    extra, source_root, output_root, destination = stale_extra
+    _extra, source_root, output_root, destination = stale_extra
 
     copied, skipped, failed = copying.copy_extra_files(source_root, output_root, _extra_rules(False))
 
@@ -313,7 +313,7 @@ def test_failed_robocopy_extra_copy_removes_incomplete_files(tmp_path, monkeypat
 
     monkeypatch.setattr(copying, "run_with_progress", truncated_then_fail)
 
-    copied, skipped, failed = copying.copy_extra_files_with_robocopy(
+    _copied, _skipped, failed = copying.copy_extra_files_with_robocopy(
         [extra], source_root, output_root, _extra_rules(False)
     )
 

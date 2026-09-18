@@ -11,11 +11,18 @@ import time
 
 import pytest
 
-from muxcls.progressview import (
-    ACTIVE, DONE, FAILED, SKIPPED,
-    ProgressRow, ProgressView, bar, truncate_visible, visible_length,
-)
 from muxcls.colors import C, color, plain
+from muxcls.progressview import (
+    ACTIVE,
+    DONE,
+    FAILED,
+    SKIPPED,
+    ProgressRow,
+    ProgressView,
+    bar,
+    truncate_visible,
+    visible_length,
+)
 
 
 class FakeConsole(io.StringIO):

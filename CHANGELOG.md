@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- The linter rule set is now the project's own decision, in a tracked `ruff.toml`, instead of whatever the installed ruff version happens to default to. ruff moves to `~=0.16.8`; the 0.16 defaults modernised 287 type hints and import blocks (`list[str]` over `List[str]`, `X | None` over `Optional[X]` - the runtime floor is 3.11, so both spellings are native), and the handful of rules this project declines are listed in that file with the reason rather than fixed by suppression comments.
+- `subprocess.run` now states `check=False` everywhere it is used. MuxCls reads the return code itself - robocopy counts 0 through 7 as success - so the behaviour is unchanged and the intent is no longer implied.
+- A raw ESC byte that sat inside the ANSI-stripping pattern is written as `\x1b`. It was invisible in an editor and would not have survived a re-encoding; the compiled pattern is identical.
+
+### Added
+
+- CI fails when the five matrix legs disagree on how many tests they collected. A test file that never starts is identical to success in every number except the collected count, and the legs run the same suite on the same commit, so they must agree - no stored baseline, and adding tests never breaks it.
+
 ## [1.8.0] - 2026-08-16
 
 ### Added

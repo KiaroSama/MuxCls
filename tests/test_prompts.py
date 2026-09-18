@@ -9,13 +9,18 @@ tmp_path, and nothing spawns a process.
 import pytest
 
 from muxcls.colors import PROMPT_DEFAULT_COLOR, plain
-from muxcls.textutil import format_prompt_label
 from muxcls.prompts import (
-    MenuBack, MenuExit,
-    ask_csv_int_required, ask_csv_text_required, ask_path, ask_yes_no,
-    input_path_from_args, normalize_path_text, read_menu_input,
+    MenuBack,
+    MenuExit,
+    ask_csv_int_required,
+    ask_csv_text_required,
+    ask_path,
+    ask_yes_no,
+    input_path_from_args,
+    normalize_path_text,
+    read_menu_input,
 )
-
+from muxcls.textutil import format_prompt_label
 
 # --- path handling --------------------------------------------------------
 

@@ -20,20 +20,20 @@ from muxcls.output import (
 
 
 def _rules(**overrides) -> SelectionRules:
-    base = dict(
-        audio_mode=AUDIO_ALL,
-        audio_languages=[],
-        audio_titles=[],
-        audio_indexes=[],
-        subtitle_mode=SUBTITLE_ALL,
-        subtitle_languages=[],
-        subtitle_titles=[],
-        subtitle_indexes=[],
-        keep_attachments=True,
-        keep_metadata=True,
-        keep_chapters=True,
-        overwrite=False,
-    )
+    base = {
+        'audio_mode': AUDIO_ALL,
+        'audio_languages': [],
+        'audio_titles': [],
+        'audio_indexes': [],
+        'subtitle_mode': SUBTITLE_ALL,
+        'subtitle_languages': [],
+        'subtitle_titles': [],
+        'subtitle_indexes': [],
+        'keep_attachments': True,
+        'keep_metadata': True,
+        'keep_chapters': True,
+        'overwrite': False,
+    }
     base.update(overrides)
     return SelectionRules(**base)
 
