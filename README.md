@@ -277,11 +277,18 @@ Local-only folders such as `Logs/`, `.Comments/`, `.kiro/`, and `.claude/` are i
 ## Testing
 
 MuxCls has a pytest test suite under `tests/`, covering stream-selection logic, output
-path resolution, and real end-to-end remuxing through actual FFmpeg-generated files.
+path resolution, real end-to-end remuxing through actual FFmpeg-generated files, and the
+promise above that no third-party package is needed at runtime.
+
+Install the test dependencies into a virtual environment built from them and nothing
+else. MuxCls needs no third-party package to run, and an environment that inherits the
+machine's global packages would let a stray import pass here while breaking every other
+machine:
 
 ```powershell
-python -m pip install -r requirements-dev.txt
-python -m pytest tests -v
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest tests -v
 ```
 
 The end-to-end tests in `tests/test_processing_e2e.py` require `ffmpeg`/`ffprobe` in
