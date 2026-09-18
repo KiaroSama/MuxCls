@@ -112,7 +112,17 @@ jobs:
       # legs must agree with each other - no stored baseline to maintain, and
       # adding tests never breaks it while losing a file on one leg always does.
       - name: Record collected count
-        run: python -m pytest tests --collect-only -q > collected.txt
+        shell: pwsh
+        run: |
+          python -m pytest tests --collect-only -q > collected.txt
+          $line = (Select-String -Path collected.txt -Pattern '^\d+ tests? collected' |
+                   Select-Object -First 1).Line
+          if (-not $line) { throw "pytest did not report a collected count" }
+          # The upload below can fail or expire, so the number also goes where
+          # that cannot reach it: this leg's log and the run summary.
+          $label = "COLLECTED ${{ matrix.os }} py${{ matrix.python-version }}: $line"
+          Write-Host $label
+          $label >> $env:GITHUB_STEP_SUMMARY
       - name: Upload collected count
         uses: actions/upload-artifact@v7
         with:
