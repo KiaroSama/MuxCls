@@ -77,9 +77,15 @@ jobs:
         if: runner.os == 'Linux' && matrix.python-version == '3.11'
         run: python -m ruff check muxcls tests MuxCls.py
 
+      # Both platforms, because the source is platform-gated: a Windows-only API
+      # behind a `sys.platform` guard is invisible to a linux check, and code the
+      # users actually run is only seen by the win32 one. mypy narrows on
+      # `sys.platform`, so each pass type-checks a different half of those guards.
       - name: Typecheck
         if: runner.os == 'Linux' && matrix.python-version == '3.11'
-        run: python -m mypy muxcls MuxCls.py --ignore-missing-imports
+        run: |
+          python -m mypy muxcls MuxCls.py --ignore-missing-imports --platform linux
+          python -m mypy muxcls MuxCls.py --ignore-missing-imports --platform win32
 
       - name: Compile check
         shell: pwsh
