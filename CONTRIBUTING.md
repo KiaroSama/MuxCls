@@ -51,16 +51,22 @@ before opening a pull request:
 
 ```powershell
 python -m ruff check muxcls tests MuxCls.py
-python -m mypy muxcls MuxCls.py --ignore-missing-imports
+python -m mypy muxcls MuxCls.py --ignore-missing-imports --platform linux
+python -m mypy muxcls MuxCls.py --ignore-missing-imports --platform win32
 python -m pytest tests --cov=muxcls --cov-report=term-missing
 ```
 
 The coverage number is reported, not enforced - the missing-line list is the
 useful part, since it names the paths nothing exercises.
 
+mypy runs twice on purpose. The source is platform-gated, so each pass checks a
+different half of the `sys.platform` guards: a Windows-only API is invisible to the
+linux pass, and the branch users actually run is only seen by the win32 one. Running
+just one of them is how a green local check turned into a red CI here before.
+
 CI (`.github/workflows/tests.yml`) runs the suite on `windows-latest` and
 `ubuntu-latest` across Python 3.11-3.13 for every push and pull request, and
-lints/typechecks once on the primary combination. A second workflow
+lints and typechecks once on the primary combination, for both platform views. A second workflow
 (`.github/workflows/codeql.yml`) runs CodeQL analysis.
 
 ## What not to commit
