@@ -7,17 +7,17 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional, Sequence
 
-from .constants import APP_VERSION, OPERATION_TIMEOUT_ENV_VAR
 from .colors import warn
+from .constants import APP_VERSION, OPERATION_TIMEOUT_ENV_VAR
 
 LOGGER = logging.getLogger("MuxCls")
 
 
-LOG_FILE: Optional[Path] = None
+LOG_FILE: Path | None = None
 
 
 # Set MUXCLS_DEBUG=1 to record command lines and captured output for every
@@ -59,7 +59,7 @@ def log_command_output(label: str, returncode: int, stdout: str, stderr: str) ->
         LOGGER.log(level, "%s stderr: %s", label, truncate_output(stderr))
 
 
-def setup_logging() -> Optional[Path]:
+def setup_logging() -> Path | None:
     global LOG_FILE
 
     try:
@@ -67,7 +67,7 @@ def setup_logging() -> Optional[Path]:
         # Logs folder belongs) is the parent of the package directory.
         log_root = Path(__file__).resolve().parent.parent / "Logs"
         log_root.mkdir(parents=True, exist_ok=True)
-        started = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+        started = datetime.now(UTC).strftime("%Y-%m-%d_%H-%M-%S")
         LOG_FILE = log_root / f"muxcls_{started}_UTC.log"
 
         level = logging.DEBUG if debug_enabled() else logging.INFO

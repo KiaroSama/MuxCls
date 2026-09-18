@@ -22,19 +22,19 @@ pytestmark = pytest.mark.skipif(not FFMPEG_AVAILABLE, reason="ffmpeg/ffprobe not
 
 
 def _rules(**overrides) -> SelectionRules:
-    base = dict(
-        audio_mode="4", audio_languages=[], audio_titles=[], audio_indexes=[],
-        subtitle_mode="1", subtitle_languages=[], subtitle_titles=[], subtitle_indexes=[],
-        keep_attachments=True, keep_metadata=True, keep_chapters=True, overwrite=True,
-        copy_non_video_files=True,
-    )
+    base = {
+        "audio_mode": "4", "audio_languages": [], "audio_titles": [], "audio_indexes": [],
+        "subtitle_mode": "1", "subtitle_languages": [], "subtitle_titles": [], "subtitle_indexes": [],
+        "keep_attachments": True, "keep_metadata": True, "keep_chapters": True, "overwrite": True,
+        "copy_non_video_files": True,
+    }
     base.update(overrides)
     return SelectionRules(**base)
 
 
 def _run_ffmpeg(cmd):
     r = subprocess.run(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        cmd, check=False, capture_output=True, text=True,
         stdin=subprocess.DEVNULL, timeout=FIXTURE_TIMEOUT,
     )
     assert r.returncode == 0, r.stderr[-800:]

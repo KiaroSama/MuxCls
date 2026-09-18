@@ -10,12 +10,18 @@ or spawns a process.
 import pytest
 
 from muxcls.constants import (
-    AUDIO_ALL, AUDIO_BY_INDEX, AUDIO_NONE,
-    SUBTITLE_ALL, SUBTITLE_BY_INDEX, SUBTITLE_NONE,
+    AUDIO_ALL,
+    AUDIO_BY_INDEX,
+    AUDIO_NONE,
+    SUBTITLE_ALL,
+    SUBTITLE_BY_INDEX,
+    SUBTITLE_NONE,
 )
 from muxcls.models import MediaFile, StreamInfo
 from muxcls.selection import (
-    ask_keep_indexes, configure_rules_exact, previous_exact_step,
+    ask_keep_indexes,
+    configure_rules_exact,
+    previous_exact_step,
 )
 
 

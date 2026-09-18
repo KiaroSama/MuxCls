@@ -69,7 +69,7 @@ def test_launcher_menu_actually_prints_the_walkthrough(tmp_path):
         proc = subprocess.run(
             [PWSH, "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass",
              "-File", str(LAUNCHER), "-NoRelaunch"],
-            stdin=stdin, capture_output=True, text=True, encoding="utf-8",
+            check=False, stdin=stdin, capture_output=True, text=True, encoding="utf-8",
             errors="replace", timeout=180,
         )
 

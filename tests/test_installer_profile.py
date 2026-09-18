@@ -52,7 +52,7 @@ def _run(shell: str, profile: Path, tmp_path: Path) -> subprocess.CompletedProce
     script.write_text(_splice_script(profile), encoding="utf-8")
     return subprocess.run(
         [shell, "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
-        capture_output=True, text=True, timeout=120,
+        check=False, capture_output=True, text=True, timeout=120,
     )
 
 

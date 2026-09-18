@@ -14,21 +14,21 @@ from muxcls.models import MediaFile, SelectionRules, StreamInfo
 
 
 def _rules(**overrides) -> SelectionRules:
-    base = dict(
-        audio_mode=AUDIO_ALL,
-        audio_languages=[],
-        audio_titles=[],
-        audio_indexes=[],
-        subtitle_mode=SUBTITLE_ALL,
-        subtitle_languages=[],
-        subtitle_titles=[],
-        subtitle_indexes=[],
-        keep_attachments=True,
-        keep_metadata=True,
-        keep_chapters=True,
-        overwrite=False,
-        copy_non_video_files=False,
-    )
+    base = {
+        "audio_mode": AUDIO_ALL,
+        "audio_languages": [],
+        "audio_titles": [],
+        "audio_indexes": [],
+        "subtitle_mode": SUBTITLE_ALL,
+        "subtitle_languages": [],
+        "subtitle_titles": [],
+        "subtitle_indexes": [],
+        "keep_attachments": True,
+        "keep_metadata": True,
+        "keep_chapters": True,
+        "overwrite": False,
+        "copy_non_video_files": False,
+    }
     base.update(overrides)
     return SelectionRules(**base)
 

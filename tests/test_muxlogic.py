@@ -19,20 +19,20 @@ from muxcls.muxlogic import (
 
 
 def _rules(**overrides) -> SelectionRules:
-    base = dict(
-        audio_mode=AUDIO_ALL,
-        audio_languages=[],
-        audio_titles=[],
-        audio_indexes=[],
-        subtitle_mode=SUBTITLE_ALL,
-        subtitle_languages=[],
-        subtitle_titles=[],
-        subtitle_indexes=[],
-        keep_attachments=True,
-        keep_metadata=True,
-        keep_chapters=True,
-        overwrite=False,
-    )
+    base = {
+        "audio_mode": AUDIO_ALL,
+        "audio_languages": [],
+        "audio_titles": [],
+        "audio_indexes": [],
+        "subtitle_mode": SUBTITLE_ALL,
+        "subtitle_languages": [],
+        "subtitle_titles": [],
+        "subtitle_indexes": [],
+        "keep_attachments": True,
+        "keep_metadata": True,
+        "keep_chapters": True,
+        "overwrite": False,
+    }
     base.update(overrides)
     return SelectionRules(**base)
 
@@ -95,7 +95,7 @@ def test_remux_needed_when_dropping_a_stream():
 def test_build_ffmpeg_command_maps_selected_streams():
     media = _media()
     rules = _rules(audio_mode=AUDIO_BY_LANGUAGE, audio_languages=["jpn"], overwrite=True)
-    cmd, audio_keep, subs_keep = build_ffmpeg_command(Path("in.mkv"), Path("out.mkv"), media, rules)
+    cmd, audio_keep, _subs_keep = build_ffmpeg_command(Path("in.mkv"), Path("out.mkv"), media, rules)
     assert [s.index for s in audio_keep] == [1]
     assert "-map" in cmd and "0:1" in cmd
     assert "0:2" not in cmd  # eng audio dropped

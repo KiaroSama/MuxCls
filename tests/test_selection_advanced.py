@@ -14,14 +14,24 @@ output-folder step.
 import pytest
 
 from muxcls.constants import (
-    AUDIO_ALL, AUDIO_BY_INDEX, AUDIO_BY_LANGUAGE, AUDIO_BY_TITLE, AUDIO_NONE,
-    SUBTITLE_ALL, SUBTITLE_BY_LANGUAGE, SUBTITLE_NONE,
+    AUDIO_ALL,
+    AUDIO_BY_INDEX,
+    AUDIO_BY_LANGUAGE,
+    AUDIO_BY_TITLE,
+    AUDIO_NONE,
+    SUBTITLE_ALL,
+    SUBTITLE_BY_LANGUAGE,
+    SUBTITLE_NONE,
 )
-from muxcls.models import MediaFile, OutputStreamEdits, SelectionRules, StreamInfo, StreamMetadataEdit
 from muxcls.metadata_edits import ask_metadata_edits, kept_languages_for_metadata
+from muxcls.models import MediaFile, OutputStreamEdits, SelectionRules, StreamInfo, StreamMetadataEdit
 from muxcls.selection import (
-    audio_mode_needs_detail, configure_rules, configure_rules_advanced,
-    previous_advanced_step, previous_exact_step, revisit_last_rule_step,
+    audio_mode_needs_detail,
+    configure_rules,
+    configure_rules_advanced,
+    previous_advanced_step,
+    previous_exact_step,
+    revisit_last_rule_step,
     subtitle_mode_needs_detail,
 )
 
@@ -37,12 +47,12 @@ def dual_audio(tmp_path):
 
 
 def _rules(**overrides) -> SelectionRules:
-    base = dict(
-        audio_mode=AUDIO_ALL, audio_languages=[], audio_titles=[], audio_indexes=[],
-        subtitle_mode=SUBTITLE_ALL, subtitle_languages=[], subtitle_titles=[], subtitle_indexes=[],
-        keep_attachments=True, keep_metadata=True, keep_chapters=True,
-        overwrite=False, copy_non_video_files=True,
-    )
+    base = {
+        "audio_mode": AUDIO_ALL, "audio_languages": [], "audio_titles": [], "audio_indexes": [],
+        "subtitle_mode": SUBTITLE_ALL, "subtitle_languages": [], "subtitle_titles": [], "subtitle_indexes": [],
+        "keep_attachments": True, "keep_metadata": True, "keep_chapters": True,
+        "overwrite": False, "copy_non_video_files": True,
+    }
     base.update(overrides)
     return SelectionRules(**base)
 

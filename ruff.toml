@@ -1,0 +1,43 @@
+# Ruff configuration.
+#
+# The rule set is the project's decision, recorded here. Without this file ruff
+# runs whatever its installed version happens to default to, so a routine bump
+# changes the rules and turns CI red on code nobody touched - which is exactly
+# what happened when the 0.16 series arrived. `requirements-dev.txt` pins ruff
+# to a compatible release for the same reason; the two belong together.
+
+target-version = "py311"
+
+# The runtime floor is 3.11, so the modern generic and union spellings are
+# available and `UP` rules are safe to take. 88 is ruff's default and would
+# reformat import blocks this project keeps on one line; 120 matches the code
+# that is actually here (99% of lines are under 102).
+line-length = 120
+
+[lint]
+# Ruff's default selection, minus the rules below. Leaving the default in place
+# means a new ruff still SHOWS new rules rather than hiding them - each one then
+# gets a decision here instead of being silently adopted or silently lost.
+ignore = [
+    # Blind `except Exception` at a last-resort boundary. Three sites, all
+    # deliberate and all logged: `main()` turns any unhandled error into an exit
+    # code plus a log line, and `enable_windows_ansi()` must never stop startup
+    # over a cosmetic console capability. See .ai/DECISIONS.md.
+    "BLE001",
+    # `try`-`except`-`pass` in `enable_windows_ansi()`, the same decision as
+    # above and the one CodeQL alert this project dismissed with a reason.
+    "S110",
+    # Three scan-report lines join six to eight coloured fields with " | ". The
+    # rule wants an f-string, which is faster for static parts - irrelevant for a
+    # per-stream report line, and an eight-placeholder f-string is harder to read
+    # and to reorder than the tuple it would replace.
+    "FLY002",
+]
+
+[lint.per-file-ignores]
+# The per-file closures in `process_files` are defined and called inside the
+# same loop iteration - the callback is handed to a synchronous call that
+# returns before the next file starts, and `report_ffmpeg` already binds its
+# position as a default argument. Nothing stores one of these for later, which
+# is the case B023 is actually about.
+"muxcls/processing.py" = ["B023"]

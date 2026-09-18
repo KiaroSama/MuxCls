@@ -2,19 +2,19 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 from . import logsetup
-from .constants import FFMPEG_BIN, FFPROBE_BIN, VIDEO_EXTENSIONS
 from .colors import C, color, enable_windows_ansi, err, info, ok, warn
+from .constants import FFMPEG_BIN, FFPROBE_BIN, VIDEO_EXTENSIONS
 from .logsetup import LOGGER, setup_logging
-from .models import SelectionRules
-from .prompts import MenuBack, MenuExit, ask_output_base_path, ask_path, ask_yes_no, input_path_from_args
 from .media import find_non_video_extensions, find_video_files, require_tool, scan_files
+from .models import SelectionRules
 from .output import resolve_output_root
+from .processing import print_ready_for_next_task, process_files, verify_output
+from .prompts import MenuBack, MenuExit, ask_output_base_path, ask_path, ask_yes_no, input_path_from_args
 from .reporting import print_header, print_scan_report, print_setting, print_unique_summary
 from .selection import configure_rules, revisit_last_rule_step
-from .processing import print_ready_for_next_task, process_files, verify_output
+
 
 def main_menu() -> None:
     enable_windows_ansi()
@@ -109,7 +109,7 @@ def main_menu() -> None:
         single_file_input = input_root.is_file()
 
         restart_input = False
-        rules: Optional[SelectionRules] = None
+        rules: SelectionRules | None = None
         while True:
             if rules is None:
                 try:
@@ -120,7 +120,7 @@ def main_menu() -> None:
                     restart_input = True
                     break
 
-            output_base: Optional[Path] = None
+            output_base: Path | None = None
             while output_base is None:
                 try:
                     output_base = ask_output_base_path(input_root)
