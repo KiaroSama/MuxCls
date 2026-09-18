@@ -195,6 +195,7 @@ The same screen can reorder the output streams. Enter the source stream indexes 
 | `tests/` | Pytest test suite (unit tests and real FFmpeg end-to-end tests). |
 | `pytest.ini` | Pytest configuration. |
 | `requirements-dev.txt` | Test-only dependencies (not required to run MuxCls). |
+| `ruff.toml` | Lint configuration: the rule set is the project's decision rather than the installed ruff version's default. |
 | `.github/workflows/tests.yml` | GitHub Actions workflow that runs the test suite on push/PR. |
 | `.github/` | Issue/PR templates and Dependabot configuration. |
 
