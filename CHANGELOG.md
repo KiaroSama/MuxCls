@@ -10,6 +10,7 @@
 
 ### Added
 
+- A test for the promise that MuxCls needs no third-party package at runtime. Nothing checked it, and nothing could have: pytest, ruff and mypy are all third-party and already imported by the time a test runs, so the check imports the package in a fresh interpreter and reports what actually reached `sys.modules`. A second test hands that probe a deliberate third-party import, so a probe that stops detecting anything fails instead of passing the first test for the wrong reason.
 - CI fails when the matrix legs of one operating system disagree on how many tests they collected. A test file that never starts is identical to success in every number except the collected count, and the legs of an OS run the same suite on the same commit, so they must agree - no stored baseline, and adding tests never breaks it. Totals across operating systems may differ and are not gated: the installer tests are parametrized over the PowerShell hosts a platform actually has.
 
 ## [1.8.0] - 2026-08-16

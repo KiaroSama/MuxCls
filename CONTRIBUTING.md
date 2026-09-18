@@ -46,6 +46,15 @@ python -m pytest tests -v
 - For changes the automated suite cannot judge (console output, menu flow, progress
   display), walk the matching section of `docs/MANUAL_QA.html` and record the result there.
 
+Work in a virtual environment built from the declared dependencies and nothing
+else. MuxCls needs no third-party package at runtime, and `--system-site-packages`
+would let a stray import pass locally while breaking every other machine:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+
 CI also lints, typechecks and measures coverage. Run the same three locally
 before opening a pull request:
 
