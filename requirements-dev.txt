@@ -14,4 +14,4 @@ pytest-cov>=7.1.0
 # which is exactly what happened when these were first added. Bump these
 # deliberately, run them locally, then push.
 ruff~=0.15.14
-mypy~=2.1.0
+mypy~=2.3.0
