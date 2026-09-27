@@ -1,5 +1,10 @@
 # MuxCls
 
+[![Tests](https://github.com/KiaroSama/MuxCls/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/KiaroSama/MuxCls/actions/workflows/tests.yml) [![CodeQL](https://github.com/KiaroSama/MuxCls/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/KiaroSama/MuxCls/actions/workflows/codeql.yml) [![License](https://img.shields.io/github/license/KiaroSama/MuxCls)](LICENSE) [![Version](https://img.shields.io/badge/version-1.8.0-blue)](CHANGELOG.md)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-3776AB?logo=python&logoColor=white)](#requirements) [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D6)](#requirements) [![Requires FFmpeg](https://img.shields.io/badge/requires-FFmpeg-007808?logo=ffmpeg&logoColor=white)](https://ffmpeg.org/) [![Runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)](tests/test_runtime_dependencies.py)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/) [![Docs](https://img.shields.io/badge/docs-README-blue)](#usage) [![Code size](https://img.shields.io/github/languages/code-size/KiaroSama/MuxCls)](https://github.com/KiaroSama/MuxCls)
+[![Last commit](https://img.shields.io/github/last-commit/KiaroSama/MuxCls)](https://github.com/KiaroSama/MuxCls/commits/main) [![Commit activity](https://img.shields.io/github/commit-activity/m/KiaroSama/MuxCls)](https://github.com/KiaroSama/MuxCls/graphs/commit-activity) [![Open issues](https://img.shields.io/github/issues/KiaroSama/MuxCls)](https://github.com/KiaroSama/MuxCls/issues) [![Support donations](https://img.shields.io/badge/Support-donations-d04a9a)](#donate)
+
 Current version: **1.8.0**
 
 MuxCls is a cross-platform FFmpeg helper for scanning video files, reviewing audio and subtitle streams, and remuxing files while keeping only the streams you choose.
